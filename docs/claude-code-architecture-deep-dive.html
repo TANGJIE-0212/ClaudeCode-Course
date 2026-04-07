@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code 源码深度解析 — AI Agent PM 视角</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf7f2;
+      --bg-warm: #f5f0e8;
+      --surface: rgba(255,255,255,0.86);
+      --surface-warm: #fdf9f3;
+      --code-bg: #1e1e2e;
+      --text: #2c2a28;
+      --text-secondary: #6b6560;
+      --text-muted: #9e9790;
+      --border: #e5dfd6;
+      --border-light: #eeebe5;
+      --accent: #d94f30;
+      --accent-hover: #c4432a;
+      --accent-light: #fdeee9;
+      --accent-muted: #e8836c;
+      --teal: #2a7b9b;
+      --teal-light: #e4f2f7;
+      --success: #2d8b55;
+      --success-light: #e8f5ee;
+      --error: #c93b3b;
+      --error-light: #fde8e8;
+      --purple: #7b6daa;
+      --purple-light: #f0ecf7;
+      --gold: #d4a843;
+      --gold-light: #fdf6e3;
+      --actor-1: #d94f30;
+      --actor-2: #2a7b9b;
+      --actor-3: #7b6daa;
+      --actor-4: #d4a843;
+      --actor-5: #2d8b55;
+      --font-display: 'Bricolage Grotesque', Georgia, serif;
+      --font-body: 'Instrument Sans', sans-serif;
+      --font-mono: 'Geist Mono', 'JetBrains Mono', Consolas, monospace;
+      --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.125rem;
+      --text-xl: 1.25rem; --text-2xl: 1.5rem; --text-3xl: 1.875rem; --text-4xl: 2.25rem;
+      --text-5xl: 3rem; --text-6xl: 3.75rem;
+      --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+      --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem; --space-10: 2.5rem;
+      --space-12: 3rem; --space-16: 4rem;
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 18px; --radius-xl: 24px; --radius-full: 9999px;
+      --shadow-sm: 0 1px 3px rgba(44,42,40,0.04), 0 1px 2px rgba(44,42,40,0.06);
+      --shadow-md: 0 4px 16px rgba(44,42,40,0.06), 0 2px 6px rgba(44,42,40,0.04);
+      --shadow-lg: 0 12px 40px rgba(44,42,40,0.08), 0 4px 12px rgba(44,42,40,0.04);
+      --shadow-xl: 0 24px 64px rgba(44,42,40,0.1), 0 8px 20px rgba(44,42,40,0.05);
+      --shadow-glow: 0 0 40px rgba(217,79,48,0.08);
+      --ease-out: cubic-bezier(0.16,1,0.3,1);
+      --ease-spring: cubic-bezier(0.34,1.56,0.64,1);
+      --ease-smooth: cubic-bezier(0.4,0,0.2,1);
+      --duration-fast: 150ms; --duration-normal: 300ms; --duration-slow: 500ms;
+      --nav-height: 64px;
+      --content-width: 960px;
+      --content-width-wide: 1160px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
+    body {
+      margin: 0; font-family: var(--font-body); color: var(--text);
+      font-feature-settings: 'kern' 1, 'liga' 1;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background:
+        radial-gradient(ellipse at 15% 15%, rgba(217,79,48,0.04), transparent 55%),
+        radial-gradient(ellipse at 85% 8%, rgba(42,123,155,0.05), transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(123,109,170,0.03), transparent 55%),
+        var(--bg);
+    }
+    ::selection { background: rgba(217,79,48,0.14); color: var(--text); }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    pre, code { white-space: pre-wrap; word-break: break-word; overflow-x: hidden; }
+
+    /* NAV */
+    .nav { position: fixed; inset: 0 0 auto 0; height: var(--nav-height); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); background: rgba(250,247,242,0.78); border-bottom: 1px solid rgba(229,223,214,0.6); z-index: 50; transition: box-shadow var(--duration-normal); }
+    .nav.scrolled { box-shadow: 0 1px 12px rgba(44,42,40,0.06); }
+    .progress-bar { position: absolute; inset: 0 auto auto 0; height: 2.5px; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-muted), var(--gold)); transition: width 120ms var(--ease-smooth); }
+    .nav-inner { max-width: 1240px; margin: 0 auto; height: 100%; padding: 0 var(--space-5); display: flex; gap: var(--space-4); align-items: center; justify-content: space-between; }
+    .nav-title { display: flex; flex-direction: column; gap: 2px; }
+    .nav-title strong { font-family: var(--font-display); font-size: var(--text-sm); letter-spacing: 0.02em; }
+    .nav-title span { color: var(--text-secondary); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; }
+    .nav-dots { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .nav-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--text-muted); background: transparent; cursor: pointer; transition: all var(--duration-normal) var(--ease-spring); padding: 0; }
+    .nav-dot:hover { border-color: var(--accent-muted); transform: scale(1.3); }
+    .nav-dot.active { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px rgba(217,79,48,0.12); transform: scale(1.15); }
+    .nav-dot.visited { border-color: var(--accent); background: var(--accent-light); }
+
+    /* MODULE */
+    .module { min-height: 100dvh; scroll-snap-align: start; padding: calc(var(--nav-height) + var(--space-16)) var(--space-6) var(--space-16); position: relative; }
+    .module:nth-of-type(odd) { background: var(--bg-warm); }
+    .module:nth-of-type(even) { background: var(--bg); }
+    .module-content { max-width: var(--content-width); margin: 0 auto; }
+    .module-content.wide { max-width: var(--content-width-wide); }
+    .module-header { margin-bottom: var(--space-10); }
+    .module-meta { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-4); }
+    .module-number { font-family: var(--font-display); font-size: clamp(3rem, 8vw, 5rem); line-height: 1; background: linear-gradient(135deg, rgba(217,79,48,0.18), rgba(212,168,67,0.12)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 800; }
+    .module-time { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0.4rem 0.8rem; border-radius: var(--radius-full); background: var(--surface); border: 1px solid var(--border-light); color: var(--text-secondary); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; }
+    .module-title { margin: 0 0 var(--space-4); font-family: var(--font-display); font-size: clamp(2rem, 4.5vw, var(--text-5xl)); line-height: 1.08; letter-spacing: -0.035em; font-weight: 800; }
+    .module-subtitle { margin: 0; max-width: 60rem; font-size: var(--text-lg); line-height: 1.72; color: var(--text-secondary); }
+
+    /* SCREEN */
+    .screen { position: relative; background: rgba(255,255,255,0.72); border: 1px solid rgba(238,235,229,0.8); border-radius: var(--radius-xl); padding: clamp(1.5rem, 3vw, 2.5rem); box-shadow: var(--shadow-md); margin-bottom: var(--space-8); overflow: hidden; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: box-shadow var(--duration-normal), transform var(--duration-normal); }
+    .screen:hover { box-shadow: var(--shadow-lg), var(--shadow-glow); }
+    .screen::before { content: ""; position: absolute; inset: auto -80px -100px auto; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(217,79,48,0.06), transparent 65%); pointer-events: none; animation: floatBlob 20s ease-in-out infinite alternate; }
+    @keyframes floatBlob { 0% { transform: translate(0,0); } 100% { transform: translate(-20px, 15px); } }
+    .screen h2, .screen h3 { position: relative; margin: 0 0 var(--space-4); font-family: var(--font-display); letter-spacing: -0.03em; }
+    .screen h2 { font-size: clamp(1.5rem, 2.5vw, var(--text-3xl)); }
+    .screen p { position: relative; margin: 0 0 var(--space-4); color: var(--text-secondary); line-height: 1.8; }
+    .lead { font-size: var(--text-xl); color: var(--text); line-height: 1.7; }
+    .screen-intro { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); flex-wrap: wrap; }
+    .screen-tag { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0.4rem 0.75rem; border-radius: var(--radius-full); background: rgba(217,79,48,0.06); color: var(--accent); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; border: 1px solid rgba(217,79,48,0.1); }
+
+    /* GRIDS */
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); margin-top: var(--space-5); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-5); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); margin-top: var(--space-5); }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-4); margin-top: var(--space-5); }
+    .grid-6 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-5); }
+
+    /* CARDS */
+    .card { padding: var(--space-5); border-radius: var(--radius-lg); background: rgba(255,255,255,0.7); border: 1px solid rgba(238,235,229,0.7); box-shadow: var(--shadow-sm); transition: transform var(--duration-normal) var(--ease-spring), box-shadow var(--duration-normal), border-color var(--duration-normal); backdrop-filter: blur(4px); }
+    .card:hover { transform: translateY(-3px) scale(1.005); box-shadow: var(--shadow-lg); border-color: rgba(217,79,48,0.15); }
+    .card h3 { margin: 0 0 var(--space-2); font-size: var(--text-lg); font-family: var(--font-display); letter-spacing: -0.025em; font-weight: 700; }
+    .card p { margin: 0; font-size: var(--text-sm); line-height: 1.75; color: var(--text-secondary); }
+    .card-icon { width: 44px; height: 44px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-bottom: var(--space-3); }
+
+    /* STAT CARD */
+    .stat-value { display: block; font-family: var(--font-display); font-size: var(--text-4xl); font-weight: 800; line-height: 1; margin-bottom: var(--space-2); background: linear-gradient(135deg, var(--accent), var(--accent-muted)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* CALLOUT */
+    .callout { display: grid; grid-template-columns: 44px 1fr; gap: var(--space-4); margin-top: var(--space-6); padding: var(--space-5) var(--space-6); border-radius: var(--radius-lg); border-left: 3px solid var(--accent); background: linear-gradient(135deg, var(--accent-light), rgba(255,255,255,0.5)); backdrop-filter: blur(4px); }
+    .callout.info { border-left-color: var(--teal); background: linear-gradient(135deg, var(--teal-light), rgba(255,255,255,0.5)); }
+    .callout.success { border-left-color: var(--success); background: linear-gradient(135deg, var(--success-light), rgba(255,255,255,0.5)); }
+    .callout.purple { border-left-color: var(--purple); background: linear-gradient(135deg, var(--purple-light), rgba(255,255,255,0.5)); }
+    .callout.gold { border-left-color: var(--gold); background: linear-gradient(135deg, var(--gold-light), rgba(255,255,255,0.5)); }
+    .callout-icon { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.72); font-size: 1.2rem; }
+    .callout strong { display: block; margin-bottom: var(--space-2); color: var(--text); }
+    .callout p { margin: 0; color: var(--text); }
+
+    /* CODE BLOCK */
+    .code-block { background: linear-gradient(160deg, #1e1e2e, #232336); color: #cdd6f4; padding: var(--space-6); border-radius: var(--radius-lg); font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.8; margin: var(--space-5) 0; overflow-x: auto; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), var(--shadow-lg); border: 1px solid rgba(255,255,255,0.06); }
+    .code-keyword { color: #cba6f7; } .code-string { color: #a6e3a1; } .code-function { color: #89b4fa; }
+    .code-comment { color: #6c7086; } .code-number { color: #fab387; } .code-property { color: #f9e2af; }
+    .code-operator { color: #94e2d5; } .code-type { color: #f5c2e7; }
+
+    /* TRANSLATION BLOCK */
+    .translation-block { display: grid; grid-template-columns: 1fr 1fr; border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-xl); margin: var(--space-6) 0; position: relative; z-index: 1; }
+    .translation-code { position: relative; background: linear-gradient(160deg, #1e1e2e, #232336); color: #cdd6f4; padding: var(--space-6); font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.8; border-right: 1px solid rgba(255,255,255,0.06); }
+    .translation-english { position: relative; background: linear-gradient(180deg, var(--surface-warm), rgba(255,255,255,0.9)); padding: var(--space-6); border-left: 3px solid var(--accent); font-size: var(--text-sm); line-height: 1.8; }
+    .translation-label { position: absolute; top: var(--space-3); right: var(--space-4); font-family: var(--font-mono); font-size: var(--text-xs); opacity: 0.6; text-transform: uppercase; letter-spacing: 0.1em; }
+    .translation-lines .tl { margin: 0 0 var(--space-3); }
+
+    /* BADGE LIST */
+    .badge-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+    .badge-item { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0.45rem 0.75rem; border-radius: var(--radius-full); background: rgba(255,255,255,0.6); border: 1px solid var(--border-light); font-size: var(--text-sm); transition: transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-fast); }
+    .badge-item:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .badge-item code { padding: 0.12rem 0.42rem; border-radius: var(--radius-full); background: var(--accent-light); color: var(--accent); font-family: var(--font-mono); font-size: var(--text-xs); }
+    .badge-teal code { background: var(--teal-light); color: var(--teal); }
+    .badge-purple code { background: var(--purple-light); color: var(--purple); }
+    .badge-success code { background: var(--success-light); color: var(--success); }
+
+    /* LAYER STACK */
+    .layer-stack { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
+    .layer-row { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-4); align-items: stretch; padding: var(--space-4); border-radius: var(--radius-lg); background: rgba(255,255,255,0.6); border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); transition: transform var(--duration-normal) var(--ease-spring), box-shadow var(--duration-normal); }
+    .layer-row:hover { transform: translateX(4px); box-shadow: var(--shadow-md); }
+    .layer-label { display: flex; align-items: center; justify-content: center; padding: var(--space-4); border-radius: var(--radius-md); font-family: var(--font-display); font-size: var(--text-base); text-align: center; letter-spacing: -0.02em; font-weight: 700; }
+    .layer-label.entry { background: rgba(217,79,48,0.12); color: var(--accent); }
+    .layer-label.orchestration { background: rgba(123,109,170,0.14); color: var(--purple); }
+    .layer-label.capability { background: rgba(42,123,155,0.14); color: var(--teal); }
+    .layer-label.protocol { background: rgba(212,168,67,0.16); color: #9a6b00; }
+    .layer-label.governance { background: rgba(45,139,85,0.14); color: var(--success); }
+    .layer-desc { font-size: var(--text-sm); line-height: 1.7; color: var(--text-secondary); display: flex; align-items: center; }
+
+    /* FLOW ANIMATION */
+    .flow-animation { background: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(253,249,243,0.9)); border: 1px solid var(--border-light); border-radius: var(--radius-xl); padding: var(--space-8); box-shadow: var(--shadow-md); position: relative; z-index: 1; }
+    .flow-actors { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--space-3); position: relative; }
+    .flow-actor { padding: var(--space-4); text-align: center; border-radius: var(--radius-lg); border: 2px solid var(--border); background: var(--surface-warm); transition: transform var(--duration-normal) var(--ease-spring), box-shadow var(--duration-slow), border-color var(--duration-normal); }
+    .flow-actor:hover:not(.active) { border-color: var(--border); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .flow-actor.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,79,48,0.12), 0 4px 24px rgba(217,79,48,0.15); transform: scale(1.05) translateY(-2px); }
+    .flow-actor-icon { width: 48px; height: 48px; border-radius: 50%; margin: 0 auto var(--space-2); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; box-shadow: 0 3px 12px rgba(0,0,0,0.15); transition: transform var(--duration-normal) var(--ease-spring); }
+    .flow-actor.active .flow-actor-icon { transform: scale(1.1); }
+    .flow-actor strong { display: block; font-size: var(--text-sm); }
+    .flow-actor p { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--text-muted); }
+    .flow-step-label { margin-top: var(--space-5); min-height: 56px; padding: var(--space-4) var(--space-5); border-radius: var(--radius-md); background: linear-gradient(135deg, var(--accent-light), rgba(253,238,233,0.5)); color: var(--text); font-size: var(--text-sm); line-height: 1.7; border: 1px solid rgba(217,79,48,0.08); transition: all var(--duration-normal); }
+    .flow-controls { display: flex; gap: var(--space-3); align-items: center; margin-top: var(--space-4); flex-wrap: wrap; }
+    .flow-progress { color: var(--text-secondary); font-size: var(--text-sm); }
+
+    /* CHAT */
+    .chat-window { background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(253,249,243,0.9)); border: 1px solid rgba(238,235,229,0.7); border-radius: var(--radius-xl); box-shadow: var(--shadow-md); padding: var(--space-6); backdrop-filter: blur(8px); }
+    .chat-messages { min-height: 200px; display: flex; flex-direction: column; gap: var(--space-3); }
+    .chat-message { display: flex; gap: var(--space-3); align-items: flex-start; animation: fadeSlideIn 0.3s var(--ease-out); }
+    .chat-message[style*="display: none"] { animation: none; }
+    .chat-avatar { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--text-xs); box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .chat-bubble { flex: 1; padding: var(--space-3) var(--space-4); border-radius: 18px 18px 18px 6px; background: rgba(255,255,255,0.7); border: 1px solid rgba(238,235,229,0.6); box-shadow: var(--shadow-sm); }
+    .chat-sender { display: block; margin-bottom: var(--space-1); font-weight: 700; font-size: var(--text-sm); }
+    .chat-bubble p { margin: 0; font-size: var(--text-sm); }
+    .chat-controls { display: flex; gap: var(--space-3); align-items: center; margin-top: var(--space-4); flex-wrap: wrap; }
+    .chat-progress { color: var(--text-secondary); font-size: var(--text-sm); }
+    .chat-typing { display: none; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
+    .chat-typing-dots { display: flex; gap: 4px; }
+    .typing-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); animation: typingBounce 1.4s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+    @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* TOOL TABLE */
+    .tool-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: var(--space-5); border-radius: var(--radius-xl); overflow: hidden; border: 1px solid var(--border-light); box-shadow: var(--shadow-md); }
+    .tool-table th { background: linear-gradient(135deg, var(--accent), var(--accent-hover)); color: white; padding: var(--space-3) var(--space-4); text-align: left; font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .tool-table td { padding: var(--space-3) var(--space-4); font-size: var(--text-sm); border-bottom: 1px solid var(--border-light); transition: background var(--duration-fast); }
+    .tool-table tr:hover td { background: rgba(217,79,48,0.03); }
+    .tool-table tr:last-child td { border-bottom: 0; }
+    .tool-table tr:nth-child(even) td { background: rgba(253,249,243,0.5); }
+    .tool-table tr:nth-child(even):hover td { background: rgba(217,79,48,0.04); }
+    .tool-table code { font-family: var(--font-mono); font-size: var(--text-xs); padding: 0.15rem 0.45rem; border-radius: var(--radius-sm); background: var(--accent-light); color: var(--accent); }
+
+    /* TIMELINE */
+    .timeline { position: relative; margin: var(--space-8) 0; padding-left: 36px; }
+    .timeline::before { content: ""; position: absolute; left: 13px; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, var(--accent), var(--border), var(--teal)); border-radius: 1px; }
+    .timeline-item { position: relative; margin-bottom: var(--space-6); transition: transform var(--duration-fast); }
+    .timeline-item:hover { transform: translateX(3px); }
+    .timeline-dot { position: absolute; left: -30px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 3px rgba(217,79,48,0.1); }
+    .timeline-item h4 { margin: 0 0 var(--space-1); font-family: var(--font-display); font-size: var(--text-base); }
+    .timeline-item p { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.7; }
+    .timeline-time { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent); font-weight: 700; }
+
+    /* TABS */
+    .tabs { margin-top: var(--space-6); }
+    .tab-buttons { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-5); padding: var(--space-1); background: rgba(229,223,214,0.3); border-radius: var(--radius-full); display: inline-flex; }
+    .tab-btn { padding: 0.55rem 1rem; border: 0; border-radius: var(--radius-full); background: transparent; font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; transition: all var(--duration-normal) var(--ease-spring); color: var(--text-muted); }
+    .tab-btn.active { background: white; color: var(--accent); box-shadow: var(--shadow-sm); }
+    .tab-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.5); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeSlideIn 0.3s var(--ease-out); }
+
+    /* BTN */
+    .btn { border: 0; border-radius: var(--radius-full); padding: 0.65rem 1.1rem; background: var(--accent); color: white; cursor: pointer; font-weight: 700; font-size: var(--text-sm); transition: transform var(--duration-normal) var(--ease-spring), background var(--duration-fast), box-shadow var(--duration-normal); letter-spacing: 0.01em; }
+    .btn:hover { background: var(--accent-hover); transform: translateY(-2px) scale(1.02); box-shadow: 0 4px 16px rgba(217,79,48,0.25); }
+    .btn:active { transform: translateY(0) scale(0.98); }
+    .btn.secondary { background: rgba(239,227,213,0.8); color: var(--text); backdrop-filter: blur(4px); }
+    .btn.secondary:hover { background: rgba(239,227,213,1); box-shadow: var(--shadow-md); }
+    .btn.ghost { background: white; color: var(--teal); border: 1px solid var(--border); }
+
+    /* DISCOVERY CARD */
+    .discovery-card { padding: var(--space-6); border-radius: var(--radius-lg); border: 1px solid rgba(238,235,229,0.7); background: linear-gradient(145deg, rgba(255,255,255,0.8), rgba(253,249,243,0.6)); position: relative; overflow: hidden; transition: transform var(--duration-normal) var(--ease-spring), box-shadow var(--duration-normal), border-color var(--duration-normal); backdrop-filter: blur(4px); }
+    .discovery-card:hover { transform: translateY(-4px) scale(1.01); box-shadow: var(--shadow-lg); border-color: rgba(217,79,48,0.12); }
+    .discovery-card::after { content: ""; position: absolute; top: -30px; right: -30px; width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle, rgba(217,79,48,0.06), transparent 70%); transition: transform var(--duration-slow); }
+    .discovery-card:hover::after { transform: scale(1.5); }
+    .discovery-card .discovery-emoji { font-size: 2rem; margin-bottom: var(--space-3); display: block; transition: transform var(--duration-normal) var(--ease-spring); }
+    .discovery-card:hover .discovery-emoji { transform: scale(1.15) rotate(-5deg); }
+    .discovery-card h3 { margin: 0 0 var(--space-2); font-family: var(--font-display); font-size: var(--text-lg); }
+    .discovery-card p { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.75; }
+
+    /* RESPONSIVE */
+    @media (max-width: 960px) {
+      .grid-4, .grid-5, .grid-6 { grid-template-columns: repeat(2, 1fr); }
+      .flow-actors { grid-template-columns: repeat(3, 1fr); }
+      .layer-row { grid-template-columns: 1fr; }
+      .tab-buttons { display: flex; }
+    }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4, .grid-5, .grid-6 { grid-template-columns: 1fr; }
+      .flow-actors { grid-template-columns: repeat(2, 1fr); }
+      .translation-block { grid-template-columns: 1fr; }
+      .translation-english { border-left: 0; border-top: 3px solid var(--accent); }
+      .module { padding: calc(var(--nav-height) + var(--space-10)) var(--space-4) var(--space-12); }
+      .tool-table { font-size: var(--text-xs); }
+      .module-title::after { width: 32px; }
+      .screen { padding: var(--space-5); }
+    }
+
+    /* SCROLL ANIMATION */
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out); }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal:nth-child(2) { transition-delay: 80ms; }
+    .reveal:nth-child(3) { transition-delay: 160ms; }
+    .reveal:nth-child(4) { transition-delay: 240ms; }
+
+    /* STAGGERED GRID CHILDREN */
+    .reveal.visible .card,
+    .reveal.visible .discovery-card,
+    .reveal.visible .layer-row,
+    .reveal.visible .timeline-item { animation: staggerIn 0.5s var(--ease-out) both; }
+    .reveal.visible :nth-child(1) { animation-delay: 0ms; }
+    .reveal.visible :nth-child(2) { animation-delay: 60ms; }
+    .reveal.visible :nth-child(3) { animation-delay: 120ms; }
+    .reveal.visible :nth-child(4) { animation-delay: 180ms; }
+    .reveal.visible :nth-child(5) { animation-delay: 240ms; }
+    .reveal.visible :nth-child(6) { animation-delay: 300ms; }
+    .reveal.visible :nth-child(7) { animation-delay: 360ms; }
+    .reveal.visible :nth-child(8) { animation-delay: 420ms; }
+    .reveal.visible :nth-child(9) { animation-delay: 480ms; }
+    @keyframes staggerIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ACCENT LINE DECORATION */
+    .module-title::after { content: ''; display: block; width: 48px; height: 3px; margin-top: var(--space-3); border-radius: 2px; background: linear-gradient(90deg, var(--accent), transparent); }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="progress-bar" id="progressBar"></div>
+  <div class="nav-inner">
+    <div class="nav-title">
+      <strong>Claude Code 源码深度解析</strong>
+      <span>AI Agent PM 视角 · ~1900 files · 512K+ LOC</span>
+    </div>
+    <div class="nav-dots" id="navDots"></div>
+  </div>
+</nav>
+
+<!-- ===== MODULE 1: 概览 ===== -->
+<section class="module" id="m1">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">01</span><span class="module-time">overview</span></div>
+      <h1 class="module-title">这不是一个聊天壳子，这是一个 Agent Runtime</h1>
+      <p class="module-subtitle">Claude Code 的源码在 2026 年 3 月 31 日通过 npm source map 泄露。~1,900 个 TypeScript 文件、512,000+ 行代码。它不是 prompt wrapper，而是一个把模型装进「上下文 × 工具 × 权限 × 恢复 × 扩展」五维控制面的完整运行时系统。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>数据一览</h2><span class="screen-tag">by the numbers</span></div>
+      <div class="grid-4">
+        <div class="card"><span class="stat-value">1,900</span><h3>源文件</h3><p>TypeScript + TSX</p></div>
+        <div class="card"><span class="stat-value">512K+</span><h3>代码行数</h3><p>不含空行和注释还是巨量</p></div>
+        <div class="card"><span class="stat-value">46+</span><h3>工具</h3><p>模型可调用的原子能力</p></div>
+        <div class="card"><span class="stat-value">110+</span><h3>命令</h3><p>用户可触发的入口</p></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>技术栈</h2><span class="screen-tag">tech stack</span></div>
+      <div class="grid-3">
+        <div class="card"><div class="card-icon" style="background:var(--accent-light)">⚡</div><h3>Bun 运行时</h3><p>取代 Node.js，启动更快、原生 TypeScript 支持、编译时 Feature Flag 消除死代码。</p></div>
+        <div class="card"><div class="card-icon" style="background:var(--teal-light)">⚛️</div><h3>React + Ink</h3><p>用 React 渲染终端 UI。组件化、Hooks、状态管理，和 Web 开发完全同一个心智模型。</p></div>
+        <div class="card"><div class="card-icon" style="background:var(--purple-light)">🧠</div><h3>AsyncGenerator 流式</h3><p>核心查询循环用异步生成器，边执行边吐事件。天然支持流式 UI、back-pressure、取消。</p></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>五维控制面</h2><span class="screen-tag">mental model</span></div>
+      <p class="lead">Claude Code 的设计对象不是「模型回答」，而是这五个维度的复合系统：</p>
+      <div class="grid-5">
+        <div class="card" style="border-top: 3px solid var(--actor-1)"><h3>上下文</h3><p>Git 状态、项目记忆、CLAUDE.md、日期等信息装配</p></div>
+        <div class="card" style="border-top: 3px solid var(--actor-2)"><h3>工具</h3><p>46+ 原子能力，按环境和权限动态裁剪</p></div>
+        <div class="card" style="border-top: 3px solid var(--actor-3)"><h3>权限</h3><p>allow/deny/ask 三态规则 + 模式切换</p></div>
+        <div class="card" style="border-top: 3px solid var(--actor-4)"><h3>恢复</h3><p>max_output_tokens 恢复、自动压缩、重试</p></div>
+        <div class="card" style="border-top: 3px solid var(--actor-5)"><h3>扩展</h3><p>MCP、Plugins、Skills、Bridge 四条扩展路径</p></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 2: 代码构成 ===== -->
+<section class="module" id="m2">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">02</span><span class="module-time">code structure</span></div>
+      <h1 class="module-title">代码构成：不是平铺的，而是分层协作的</h1>
+      <p class="module-subtitle">30+ 个顶层目录，按职责清晰分层。每一层只管自己的事，通过协议互相通信。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>五层架构</h2><span class="screen-tag">architecture layers</span></div>
+      <div class="layer-stack">
+        <div class="layer-row"><div class="layer-label entry">用户入口层</div><div class="layer-desc"><strong>main.tsx</strong> 启动装配 · <strong>commands/</strong> 110+ 用户命令 · <strong>screens/</strong> REPL 主屏幕 · <strong>entrypoints/</strong> CLI / MCP / SDK 入口</div></div>
+        <div class="layer-row"><div class="layer-label orchestration">编排层</div><div class="layer-desc"><strong>query.ts</strong> + <strong>QueryEngine.ts</strong> 查询主循环 · <strong>context.ts</strong> 上下文装配 · <strong>coordinator/</strong> 多 Agent 协调 · <strong>cost-tracker.ts</strong> 成本计量</div></div>
+        <div class="layer-row"><div class="layer-label capability">能力层</div><div class="layer-desc"><strong>tools/</strong> 46+ 工具实现 · <strong>skills/</strong> 可复用流程 · <strong>plugins/</strong> 扩展插件 · <strong>services/</strong> API、MCP、LSP 等后端服务</div></div>
+        <div class="layer-row"><div class="layer-label protocol">协议层</div><div class="layer-desc"><strong>Tool.ts</strong> 工具协议 · <strong>Task.ts</strong> 任务协议 · <strong>state/</strong> 不可变状态 Store · <strong>types/</strong> 全局类型系统</div></div>
+        <div class="layer-row"><div class="layer-label governance">治理层</div><div class="layer-desc"><strong>utils/permissions/</strong> 20+ 权限文件 · <strong>memdir/</strong> 记忆管理 · <strong>constants/</strong> beta header + feature flag</div></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>核心目录说明</h2><span class="screen-tag">directory map</span></div>
+      <div class="tabs">
+        <div class="tab-buttons">
+          <button class="tab-btn active" data-tab="tab-tools">tools/</button>
+          <button class="tab-btn" data-tab="tab-commands">commands/</button>
+          <button class="tab-btn" data-tab="tab-services">services/</button>
+          <button class="tab-btn" data-tab="tab-state">state/</button>
+          <button class="tab-btn" data-tab="tab-other">其他亮点</button>
+        </div>
+        <div class="tab-panel active" id="tab-tools">
+          <p>~180 个文件，46+ 工具。每个工具一个子目录，包含实现、prompt、测试。</p>
+          <div class="badge-list">
+            <span class="badge-item"><code>BashTool</code> 1800+ 行</span>
+            <span class="badge-item"><code>FileEditTool</code></span>
+            <span class="badge-item"><code>FileReadTool</code></span>
+            <span class="badge-item"><code>FileWriteTool</code></span>
+            <span class="badge-item"><code>AgentTool</code></span>
+            <span class="badge-item"><code>GrepTool</code></span>
+            <span class="badge-item"><code>GlobTool</code></span>
+            <span class="badge-item"><code>WebFetchTool</code></span>
+            <span class="badge-item"><code>WebSearchTool</code></span>
+            <span class="badge-item"><code>SkillTool</code></span>
+            <span class="badge-item"><code>NotebookEditTool</code></span>
+            <span class="badge-item"><code>TodoWriteTool</code></span>
+            <span class="badge-item"><code>LSPTool</code></span>
+            <span class="badge-item badge-teal"><code>EnterPlanMode</code></span>
+            <span class="badge-item badge-teal"><code>AskUserQuestion</code></span>
+            <span class="badge-item badge-purple"><code>TeamCreate</code></span>
+            <span class="badge-item badge-purple"><code>SendMessage</code></span>
+            <span class="badge-item badge-purple"><code>TaskCreate/Stop/List</code></span>
+            <span class="badge-item badge-success"><code>ScheduleCron</code></span>
+            <span class="badge-item badge-success"><code>RemoteTrigger</code></span>
+            <span class="badge-item badge-success"><code>EnterWorktree</code></span>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-commands">
+          <p>110+ 用户命令，覆盖开发全流程。</p>
+          <div class="grid-3">
+            <div class="card"><h3>开发工作流</h3><p><code>/commit</code> <code>/review</code> <code>/diff</code> <code>/branch</code> <code>/rewind</code> <code>/plan</code> <code>/autofix-pr</code> <code>/bughunter</code></p></div>
+            <div class="card"><h3>项目管理</h3><p><code>/tasks</code> <code>/memory</code> <code>/session</code> <code>/resume</code> <code>/cost</code> <code>/insights</code> <code>/agents</code></p></div>
+            <div class="card"><h3>配置与扩展</h3><p><code>/config</code> <code>/model</code> <code>/mcp</code> <code>/skills</code> <code>/permissions</code> <code>/vim</code> <code>/voice</code> <code>/bridge</code></p></div>
+            <div class="card"><h3>诊断与工具</h3><p><code>/doctor</code> <code>/status</code> <code>/heapdump</code> <code>/debug-tool-call</code> <code>/export</code> <code>/compact</code></p></div>
+            <div class="card"><h3>高级功能</h3><p><code>/teleport</code> <code>/advisor</code> <code>/fast</code> <code>/effort</code> <code>/sandbox-toggle</code> <code>/thinkback-play</code></p></div>
+            <div class="card"><h3>生态集成</h3><p><code>/install-github-app</code> <code>/install-slack-app</code> <code>/release-notes</code> <code>/privacy-settings</code></p></div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-services">
+          <p>~120 个文件，对接各种外部服务。</p>
+          <div class="grid-2">
+            <div class="card"><h3>API 客户端</h3><p>Claude API、Bedrock、Vertex 三端适配，支持流式、batch、工具调用。</p></div>
+            <div class="card"><h3>MCP 服务 (23 文件)</h3><p>Model Context Protocol，支持 Stdio/SSE/HTTP/WebSocket 四种传输，每个 MCP Server 独立 OAuth。</p></div>
+            <div class="card"><h3>LSP 集成</h3><p>语言服务器协议，代码补全、定义跳转、悬浮提示。</p></div>
+            <div class="card"><h3>分析与遥测</h3><p>OpenTelemetry + 1P 事件日志，错误上报、性能追踪。</p></div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-state">
+          <p>不可变状态管理，200+ 字段覆盖全局。</p>
+          <div class="translation-block">
+            <div class="translation-code">
+              <span class="translation-label">AppState</span>
+<pre><code><span class="code-comment">// 200+ fields covering:</span>
+<span class="code-property">messages</span>: Message[]          <span class="code-comment">// 对话历史</span>
+<span class="code-property">model</span>: ModelSetting          <span class="code-comment">// 当前模型</span>
+<span class="code-property">tasks</span>: TaskState[]           <span class="code-comment">// 运行中任务</span>
+<span class="code-property">permissionMode</span>: Mode        <span class="code-comment">// 权限模式</span>
+<span class="code-property">mcpConnections</span>: MCP[]       <span class="code-comment">// MCP 连接</span>
+<span class="code-property">teammates</span>: Agent[]           <span class="code-comment">// 团队 Agent</span>
+<span class="code-property">plugins</span>: Plugin[]            <span class="code-comment">// 已加载插件</span>
+<span class="code-property">theme</span>, <span class="code-property">effort</span>, <span class="code-property">thinking</span>... <span class="code-comment">// UI 配置</span></code></pre>
+            </div>
+            <div class="translation-english">
+              <span class="translation-label">设计</span>
+              <div class="translation-lines">
+                <p class="tl">使用 <code>useSyncExternalStore</code> 模式，React 组件通过 selector 订阅状态切片。</p>
+                <p class="tl">状态不可变 → 一致渲染、可调试、可回放。</p>
+                <p class="tl">这不是简单的 useState，而是为 agent 运行时设计的完整状态管理层。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-other">
+          <div class="grid-3">
+            <div class="card"><h3>bridge/ (31 文件)</h3><p>远程执行模式：JWT 认证、设备信任、加密会话、WebSocket 传输。</p></div>
+            <div class="card"><h3>voice/</h3><p>语音输入模式：需要 Anthropic OAuth，有 GrowthBook 紧急关闭开关。</p></div>
+            <div class="card"><h3>vim/</h3><p>完整 Vim 模式状态机：Normal、Insert、Replace、Visual 模式全覆盖。</p></div>
+            <div class="card"><h3>coordinator/</h3><p>多 Agent 协调器：dispatcher / worker / scratchpad 架构。</p></div>
+            <div class="card"><h3>memdir/ (8 文件)</h3><p>记忆系统：MEMORY.md 限 200 行 25KB，智能截断，团队记忆。</p></div>
+            <div class="card"><h3>native-ts/</h3><p>原生能力：颜色 diff 算法、文件索引、Yoga 布局引擎绑定。</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 3: 运行逻辑 ===== -->
+<section class="module" id="m3">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">03</span><span class="module-time">runtime logic</span></div>
+      <h1 class="module-title">运行逻辑：一次请求是怎么被推进的</h1>
+      <p class="module-subtitle">不是一问一答，而是一个持续推进的状态机。理解这个循环，就理解了 Agent 产品的核心引擎。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>启动时间线</h2><span class="screen-tag">startup timeline</span></div>
+      <div class="timeline">
+        <div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-time">0ms</span><h4>入口点 main.tsx</h4><p>启动性能采样，异步预取 MDM 配置和 Keychain 凭据。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-2)"></div><span class="timeline-time">~5ms</span><h4>CLI 解析 + 能力注册</h4><p>Commander 设置，导入 46+ 工具定义和 110+ 命令定义。Feature Flag 编译时裁剪死代码。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-3)"></div><span class="timeline-time">~50ms</span><h4>插件 + 技能初始化</h4><p>initBuiltinPlugins() → initBundledSkills() → discoverSkillDirs()。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-4)"></div><span class="timeline-time">~80ms</span><h4>认证 + 策略</h4><p>OAuth 验证、订阅类型检查、信任对话框、远程策略加载。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-5)"></div><span class="timeline-time">~130ms</span><h4>Setup + 遥测</h4><p>Node.js ≥18 校验、UDS 消息服务器、文件监听、清理钩子注册。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--success)"></div><span class="timeline-time">~200ms</span><h4>渲染 REPL，用户可交互</h4><p>React/Ink 渲染主屏幕，后台异步预取上下文继续加载。</p></div>
+      </div>
+      <div class="callout info">
+        <div class="callout-icon">⚡</div>
+        <div><strong>PM 关注点</strong><p>200ms 可交互。预取和并行加载不是优化技巧，而是产品用户体验底线。</p></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>请求执行动画</h2><span class="screen-tag">flow animation</span></div>
+      <div class="flow-animation" id="mainFlow">
+        <div class="flow-actors">
+          <div class="flow-actor" id="fa-1"><div class="flow-actor-icon" style="background:var(--actor-1)">👤</div><strong>User</strong><p>发出目标</p></div>
+          <div class="flow-actor" id="fa-2"><div class="flow-actor-icon" style="background:var(--actor-2)">🧾</div><strong>Context</strong><p>装配上下文</p></div>
+          <div class="flow-actor" id="fa-3"><div class="flow-actor-icon" style="background:var(--actor-3)">🧠</div><strong>Query Loop</strong><p>驱动主循环</p></div>
+          <div class="flow-actor" id="fa-4"><div class="flow-actor-icon" style="background:var(--actor-4)">🛠️</div><strong>Tools</strong><p>执行动作</p></div>
+          <div class="flow-actor" id="fa-5"><div class="flow-actor-icon" style="background:var(--actor-5)">🔒</div><strong>Permissions</strong><p>权限检查</p></div>
+          <div class="flow-actor" id="fa-6"><div class="flow-actor-icon" style="background:var(--success)">🛟</div><strong>Recovery</strong><p>恢复推进</p></div>
+        </div>
+        <div class="flow-step-label" id="flowLabel">点击 Next Step 走一遍完整执行流程</div>
+        <div class="flow-controls">
+          <button class="btn" id="flowNext">Next Step</button>
+          <button class="btn secondary" id="flowAutoPlay">Auto Play</button>
+          <button class="btn secondary" id="flowReset">Restart</button>
+          <span class="flow-progress" id="flowProgress">0 / 8</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>核心代码：AsyncGenerator 查询循环</h2><span class="screen-tag">code walkthrough</span></div>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">query.ts</span>
+<pre><code><span class="code-keyword">export async function</span>* <span class="code-function">query</span>(
+  params: <span class="code-type">QueryParams</span>,
+): <span class="code-type">AsyncGenerator</span>&lt;
+  | StreamEvent
+  | RequestStartEvent
+  | Message
+  | ToolUseSummaryMessage,
+  Terminal
+&gt; {
+  <span class="code-keyword">const</span> consumedCommandUuids: <span class="code-type">string</span>[] = []
+  <span class="code-keyword">const</span> terminal = <span class="code-keyword">yield</span>* <span class="code-function">queryLoop</span>(
+    params, consumedCommandUuids
+  )
+  <span class="code-keyword">for</span> (<span class="code-keyword">const</span> uuid <span class="code-keyword">of</span> consumedCommandUuids) {
+    <span class="code-function">notifyCommandLifecycle</span>(uuid, <span class="code-string">'completed'</span>)
+  }
+  <span class="code-keyword">return</span> terminal
+}</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">人话翻译</span>
+          <div class="translation-lines">
+            <p class="tl"><strong>async function*</strong> — 不是一次性返回结果，而是边执行边吐出事件流。</p>
+            <p class="tl"><strong>yield* queryLoop</strong> — 把主循环的所有事件原样转发给上层消费者。循环内部会根据模型输出决定是否继续调工具。</p>
+            <p class="tl"><strong>notifyCommandLifecycle</strong> — 任务结束时统一补状态，保证外部观察者知道任务真的完成了。</p>
+            <p class="tl">这个函数同时实现了「过程可见」和「结果可收束」两件事。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>恢复逻辑：产品是不是「真能用」的分界线</h2><span class="screen-tag">recovery system</span></div>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">恢复代码</span>
+<pre><code><span class="code-keyword">const</span> MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = <span class="code-number">3</span>
+
+<span class="code-keyword">function</span> <span class="code-function">isWithheldMaxOutputTokens</span>(
+  msg: Message | StreamEvent | undefined,
+): msg <span class="code-keyword">is</span> <span class="code-type">AssistantMessage</span> {
+  <span class="code-keyword">return</span> msg?.type === <span class="code-string">'assistant'</span>
+    && msg.apiError === <span class="code-string">'max_output_tokens'</span>
+}</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">产品含义</span>
+          <div class="translation-lines">
+            <p class="tl">系统把「输出太长被截断」当成常规运行条件，不是罕见事故。</p>
+            <p class="tl">最多重试 3 次，避免无限循环，也避免把中间错误过早暴露给用户。</p>
+            <p class="tl">其他恢复路径：<strong>自动压缩</strong>（上下文 >90% 时总结历史）、<strong>工具结果截断</strong>（>100KB 落盘）、<strong>瞬态错误重试</strong>。</p>
+          </div>
+        </div>
+      </div>
+      <div class="callout success">
+        <div class="callout-icon">🛟</div>
+        <div><strong>PM 洞察</strong><p>用户不会记住系统第一次说得多好，但会记住它在中途出错时还能不能继续把任务做完。恢复能力是主路径功能，不是售后功能。</p></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 4: 工具系统 ===== -->
+<section class="module" id="m4">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">04</span><span class="module-time">tool system</span></div>
+      <h1 class="module-title">工具系统：46+ 原子能力的注册、权限和执行</h1>
+      <p class="module-subtitle">每个工具不是一个简单函数，而是一个有 Schema、权限、并发安全标记、进度回调和 UI 渲染方法的完整协议单元。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>buildTool() 工厂模式</h2><span class="screen-tag">tool protocol</span></div>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">Tool.ts</span>
+<pre><code><span class="code-keyword">export const</span> MyTool = <span class="code-function">buildTool</span>({
+  <span class="code-property">name</span>: <span class="code-string">'my_tool'</span>,
+  <span class="code-function">description</span>(),         <span class="code-comment">// 给模型看的说明</span>
+  <span class="code-function">prompt</span>(),               <span class="code-comment">// 行为引导 prompt</span>
+  <span class="code-property">inputSchema</span>: z.object({...}),  <span class="code-comment">// Zod 输入校验</span>
+  <span class="code-property">outputSchema</span>: z.object({...}), <span class="code-comment">// Zod 输出校验</span>
+  <span class="code-keyword">async</span> <span class="code-function">call</span>(args, ctx, canUse, msg, onProgress) {
+    <span class="code-keyword">return</span> { data: result }
+  },
+  <span class="code-keyword">async</span> <span class="code-function">checkPermissions</span>(input, ctx) {
+    <span class="code-keyword">return</span> { canUse: <span class="code-keyword">true</span> }
+  },
+  <span class="code-function">isConcurrencySafe</span>(input) { ... },
+  <span class="code-function">isReadOnly</span>(input) { ... },
+  <span class="code-function">renderToolUseMessage</span>() { ... },
+  <span class="code-function">renderToolResultMessage</span>() { ... },
+  <span class="code-comment">// ... 20+ optional methods</span>
+})</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">设计要点</span>
+          <div class="translation-lines">
+            <p class="tl"><strong>Schema 校验</strong> — 所有输入用 Zod v4 在运行时校验，不合格直接拒绝。</p>
+            <p class="tl"><strong>权限检查</strong> — 每次调用前检查 allow/deny/ask 规则。</p>
+            <p class="tl"><strong>并发标记</strong> — BashTool 标记为 safe (可并行)，FileEditTool 标记为 unsafe (独占)。</p>
+            <p class="tl"><strong>UI 渲染</strong> — 工具自己知道怎么在终端展示执行过程和结果。</p>
+            <p class="tl">这不是随便挂几个函数，而是一套完整的「能力接口规范」。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>全部 46+ 工具分类</h2><span class="screen-tag">tool catalog</span></div>
+      <table class="tool-table">
+        <thead><tr><th>类别</th><th>工具</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="3"><strong>Shell & 执行</strong></td><td><code>BashTool</code></td><td>Shell 命令执行，~1800 行，安全分类 + 沙箱</td></tr>
+          <tr><td><code>PowerShell</code></td><td>Windows 原生脚本</td></tr>
+          <tr><td><code>REPL</code></td><td>交互式执行环境 (feature-gated)</td></tr>
+          <tr><td rowspan="5"><strong>文件操作</strong></td><td><code>FileReadTool</code></td><td>文件读取 + Git Diff</td></tr>
+          <tr><td><code>FileEditTool</code></td><td>多策略编辑：精确匹配 / 模糊 / 补丁</td></tr>
+          <tr><td><code>FileWriteTool</code></td><td>文件创建和覆盖写入</td></tr>
+          <tr><td><code>NotebookEditTool</code></td><td>Jupyter Notebook 单元格编辑</td></tr>
+          <tr><td><code>TodoWriteTool</code></td><td>Todo 列表管理</td></tr>
+          <tr><td rowspan="4"><strong>搜索 & 查询</strong></td><td><code>GrepTool</code></td><td>正则内容搜索</td></tr>
+          <tr><td><code>GlobTool</code></td><td>文件名模式匹配</td></tr>
+          <tr><td><code>WebSearchTool</code></td><td>Web 搜索</td></tr>
+          <tr><td><code>WebFetchTool</code></td><td>HTTP 请求 + 内容提取</td></tr>
+          <tr><td rowspan="3"><strong>Agent & 协作</strong></td><td><code>AgentTool</code></td><td>后台子 Agent 生成，支持 worktree 隔离</td></tr>
+          <tr><td><code>TeamCreate / Delete</code></td><td>多 Agent 团队管理</td></tr>
+          <tr><td><code>SendMessage</code></td><td>Agent 间消息通信</td></tr>
+          <tr><td rowspan="4"><strong>任务管理</strong></td><td><code>TaskCreate</code></td><td>创建后台任务</td></tr>
+          <tr><td><code>TaskList / Get</code></td><td>查询任务状态</td></tr>
+          <tr><td><code>TaskStop</code></td><td>终止任务</td></tr>
+          <tr><td><code>TaskOutput</code></td><td>获取任务输出</td></tr>
+          <tr><td rowspan="4"><strong>高级功能</strong></td><td><code>ScheduleCron</code></td><td>定时触发任务 (beta)</td></tr>
+          <tr><td><code>EnterWorktree</code></td><td>Git Worktree 隔离执行</td></tr>
+          <tr><td><code>RemoteTrigger</code></td><td>远程环境执行</td></tr>
+          <tr><td><code>LSPTool</code></td><td>语言服务器集成</td></tr>
+          <tr><td rowspan="3"><strong>规划 & 交互</strong></td><td><code>EnterPlanMode</code></td><td>结构化规划模式</td></tr>
+          <tr><td><code>AskUserQuestion</code></td><td>执行中向用户提问</td></tr>
+          <tr><td><code>SkillTool</code></td><td>执行已加载的 Skill 流程</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>工具执行路径</h2><span class="screen-tag">execution path</span></div>
+      <div class="chat-window" id="chatToolExec">
+        <div class="chat-messages">
+          <div class="chat-message" data-msg="0" style="display:none">
+            <div class="chat-avatar" style="background:var(--actor-3)">🧠</div>
+            <div class="chat-bubble"><span class="chat-sender" style="color:var(--actor-3)">LLM</span><p>生成 tool_use block: <code>{ name: "bash", input: { command: "git diff HEAD~1" } }</code></p></div>
+          </div>
+          <div class="chat-message" data-msg="1" style="display:none">
+            <div class="chat-avatar" style="background:var(--actor-4)">📋</div>
+            <div class="chat-bubble"><span class="chat-sender" style="color:var(--actor-4)">Validator</span><p>Zod Schema 校验输入参数 → 通过 ✅</p></div>
+          </div>
+          <div class="chat-message" data-msg="2" style="display:none">
+            <div class="chat-avatar" style="background:var(--actor-5)">🔒</div>
+            <div class="chat-bubble"><span class="chat-sender" style="color:var(--actor-5)">Permission</span><p>检查权限规则: alwaysAllowRules 匹配 <code>"git *"</code> → 自动允许 ✅</p></div>
+          </div>
+          <div class="chat-message" data-msg="3" style="display:none">
+            <div class="chat-avatar" style="background:var(--accent)">🛠️</div>
+            <div class="chat-bubble"><span class="chat-sender" style="color:var(--accent)">BashTool</span><p>执行命令，流式输出进度到 UI。安全分类器判定为 "read" 操作。</p></div>
+          </div>
+          <div class="chat-message" data-msg="4" style="display:none">
+            <div class="chat-avatar" style="background:var(--success)">📤</div>
+            <div class="chat-bubble"><span class="chat-sender" style="color:var(--success)">Result</span><p>输出 2.4MB → 自动落盘 + 生成预览摘要 → 回灌给模型继续决策。</p></div>
+          </div>
+        </div>
+        <div class="chat-typing" id="chatToolExec-typing"><div class="chat-avatar" style="background:var(--actor-2)">…</div><div class="chat-typing-dots"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>
+        <div class="chat-controls">
+          <button class="btn chat-next-btn">Start</button>
+          <button class="btn secondary chat-all-btn">Play All</button>
+          <button class="btn secondary chat-reset-btn">Replay</button>
+          <span class="chat-progress">0 / 5</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 5: 关键系统设计 ===== -->
+<section class="module" id="m5">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">05</span><span class="module-time">key designs</span></div>
+      <h1 class="module-title">关键系统设计：六个值得细看的控制面</h1>
+      <p class="module-subtitle">这些不是实现细节，而是 Agent 产品的核心设计杠杆。每一个都直接影响用户体验、安全、成本和可扩展性。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>1. 权限治理系统</h2><span class="screen-tag">permissions</span></div>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">ToolPermissionContext</span>
+<pre><code><span class="code-keyword">export type</span> <span class="code-type">ToolPermissionContext</span> = DeepImmutable&lt;{
+  <span class="code-property">mode</span>: <span class="code-type">PermissionMode</span>
+  <span class="code-property">alwaysAllowRules</span>: <span class="code-type">ToolPermissionRulesBySource</span>
+  <span class="code-property">alwaysDenyRules</span>: <span class="code-type">ToolPermissionRulesBySource</span>
+  <span class="code-property">alwaysAskRules</span>: <span class="code-type">ToolPermissionRulesBySource</span>
+  <span class="code-property">isBypassPermissionsModeAvailable</span>: <span class="code-type">boolean</span>
+  <span class="code-property">isAutoModeAvailable</span>?: <span class="code-type">boolean</span>
+}&gt;</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">产品含义</span>
+          <div class="translation-lines">
+            <p class="tl">每个会话带着一份「权限契约」运行，不是自由发挥。</p>
+            <p class="tl">三条规则链：<strong>始终允许</strong>（高频低风险）、<strong>始终拒绝</strong>（平台红线）、<strong>始终询问</strong>（需确认）。</p>
+            <p class="tl">权限匹配器用闭包预编译正则，一次解析、多次匹配。</p>
+          </div>
+        </div>
+      </div>
+      <div class="badge-list">
+        <span class="badge-item"><code>default</code> 默认模式</span>
+        <span class="badge-item badge-teal"><code>auto</code> 自动模式</span>
+        <span class="badge-item badge-purple"><code>ask</code> 逐一确认</span>
+        <span class="badge-item badge-success"><code>bypass</code> 跳过（受限）</span>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>2. System Prompt 装配系统</h2><span class="screen-tag">prompt assembly</span></div>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">prompt 优先级</span>
+<pre><code><span class="code-keyword">if</span> (overrideSystemPrompt)
+  <span class="code-keyword">return</span> <span class="code-function">asSystemPrompt</span>([overrideSystemPrompt])
+
+<span class="code-keyword">if</span> (feature(<span class="code-string">'COORDINATOR_MODE'</span>) && ...)
+  <span class="code-keyword">return</span> <span class="code-function">asSystemPrompt</span>([
+    <span class="code-function">getCoordinatorSystemPrompt</span>(),
+    ...(appendSystemPrompt ? [appendSystemPrompt] : []),
+  ])
+
+<span class="code-keyword">return</span> <span class="code-function">asSystemPrompt</span>([
+  ...(agentSystemPrompt
+    ? [agentSystemPrompt]
+    : customSystemPrompt
+      ? [customSystemPrompt]
+      : defaultSystemPrompt),
+  ...(appendSystemPrompt ? [appendSystemPrompt] : []),
+])</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">设计思路</span>
+          <div class="translation-lines">
+            <p class="tl">Prompt 不是一段固定文案，而是按角色和模式做优先级装配。</p>
+            <p class="tl">支持 <strong>replace</strong>（整体替换）和 <strong>append</strong>（追加）两种装配方式。</p>
+            <p class="tl">Coordinator、Agent、Custom、Default 四个身份有明确层级。</p>
+            <p class="tl">这让 prompt 从「写得好不好」升级成「不同模式下如何稳定装配」。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>3. 多 Agent 协调 (Coordinator Mode)</h2><span class="screen-tag">multi-agent</span></div>
+      <div class="code-block">
+<pre><code><span class="code-comment">// Coordinator 系统 Prompt 摘要：</span>
+You are a <span class="code-keyword">coordinator</span>. Your job is to:
+- Help the user achieve their goal
+- Direct workers to research, implement and verify
+- Synthesize results and communicate with the user
+
+<span class="code-keyword">Parallelism</span> is your superpower.
+
+<span class="code-keyword">Verification</span> means <span class="code-string">proving the code works</span>,
+not confirming it exists.</code></pre>
+      </div>
+      <div class="grid-2">
+        <div class="card" style="border-top: 3px solid var(--purple)">
+          <h3>架构</h3>
+          <p>Coordinator 负责综合 → Worker 负责实现 → Verifier 保持 fresh eyes 独立验证。不是随便并发，而是明确的组织分工。</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--teal)">
+          <h3>PM 启示</h3>
+          <p>多 Agent 协作不该只问「能不能并发」，而要问「谁综合、谁执行、谁反证、结果怎么回流」。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>4. 上下文压缩 (Reactive Compact)</h2><span class="screen-tag">context management</span></div>
+      <div class="grid-3">
+        <div class="card"><div class="card-icon" style="background:var(--teal-light)">📥</div><h3>预处理</h3><p>Memory prefetch：预取相关记忆文件，为压缩做准备。</p></div>
+        <div class="card"><div class="card-icon" style="background:var(--accent-light)">🗜️</div><h3>触发压缩</h3><p>Reactive compact：80% 警告，90% 自动总结历史并清理。</p></div>
+        <div class="card"><div class="card-icon" style="background:var(--success-light)">🧹</div><h3>善后恢复</h3><p>Post-compaction cleanup：按主线程、subagent、cache、prompt section 分开清理。</p></div>
+      </div>
+      <div class="callout purple">
+        <div class="callout-icon">🧠</div>
+        <div><strong>为什么高级工程师觉得这很好</strong><p>压缩不是粗暴的全局 reset，而是认真区分不同「后果域」的精细化操作。这是长任务可持续性的基础。</p></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>5. 成本追踪系统</h2><span class="screen-tag">cost tracking</span></div>
+      <div class="grid-3">
+        <div class="card"><span class="stat-value" style="font-size: var(--text-2xl)">$</span><h3>总 USD 成本</h3><p>实时计算，按模型计费。</p></div>
+        <div class="card"><span class="stat-value" style="font-size: var(--text-2xl)">🔢</span><h3>Token 计量</h3><p>输入、输出、缓存创建、缓存读取分别计数。</p></div>
+        <div class="card"><span class="stat-value" style="font-size: var(--text-2xl)">⏱️</span><h3>延迟追踪</h3><p>API 耗时（含重试 / 不含重试）、工具执行耗时。</p></div>
+        <div class="card"><span class="stat-value" style="font-size: var(--text-2xl)">📝</span><h3>代码变更</h3><p>新增行数、删除行数。</p></div>
+        <div class="card"><span class="stat-value" style="font-size: var(--text-2xl)">🔍</span><h3>搜索请求</h3><p>Web 搜索调用次数。</p></div>
+        <div class="card"><span class="stat-value" style="font-size: var(--text-2xl)">💾</span><h3>持久化</h3><p>保存到项目配置，恢复会话时自动加载。</p></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>6. 记忆系统 (Memory Pipeline)</h2><span class="screen-tag">memory</span></div>
+      <div class="grid-2">
+        <div class="card" style="border-left: 4px solid var(--accent)">
+          <h3>MEMORY.md</h3>
+          <p>每个项目的持久记忆文件，限 200 行 / 25KB。智能截断：先按行、再按字节、避免截断半行。</p>
+        </div>
+        <div class="card" style="border-left: 4px solid var(--teal)">
+          <h3>Auto Memory</h3>
+          <p>GrowthBook gate <code>tengu_auto_memory</code> 控制是否自动沉淀记忆。Agent 创建时可选注入「如何积累记忆」的指令。</p>
+        </div>
+        <div class="card" style="border-left: 4px solid var(--purple)">
+          <h3>Team Memory</h3>
+          <p>Feature-gated <code>TEAMMEM</code>，团队级共享记忆。多 Agent 协作时共享知识。</p>
+        </div>
+        <div class="card" style="border-left: 4px solid var(--success)">
+          <h3>Memory Pipeline</h3>
+          <p>项目级 → 会话级 → Agent scope → 相关记忆预取 → Compaction 后再注入。完整的记忆生命周期管理。</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 6: Harness 启示 ===== -->
+<section class="module" id="m6">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">06</span><span class="module-time">harness insights</span></div>
+      <h1 class="module-title">对 Harness Engineer 的 6 个启示</h1>
+      <p class="module-subtitle">如果你在构建或评估 Agent Harness，这 6 个点比「支不支持 tool calling」重要 10 倍。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="grid-3">
+        <div class="card" style="border-top: 3px solid var(--actor-1)">
+          <h3>1. Harness 首先是 Runtime</h3>
+          <p><code>query.ts</code> 用循环推进任务、处理中断和恢复。系统不是一问一答，而是可持续运行的状态机。</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--actor-2)">
+          <h3>2. 能力池 ≠ 可见菜单</h3>
+          <p><code>tools.ts</code> 先维护基础能力池，再按权限、环境、模式过滤出当前可见工具。「动态裁剪」而不是「每次重造」。</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--actor-3)">
+          <h3>3. 协议层必须独立</h3>
+          <p><code>Tool.ts</code> 把权限上下文、执行上下文、共享契约单独抽出。这样平台能扩展，不被注册逻辑绑死。</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--actor-4)">
+          <h3>4. 边界治理 > 能力多少</h3>
+          <p>auto-mode、sandbox、permission context、working directory 这些机制说明，卖的是「可控执行」不是「无限执行」。</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--actor-5)">
+          <h3>5. 下一站是多 Worker</h3>
+          <p>coordinator / worker / scratchpad 设计表明，成熟 harness 原生支持分工、委派和隔离。</p>
+        </div>
+        <div class="card" style="border-top: 3px solid var(--success)">
+          <h3>6. 没有观测就没有产品</h3>
+          <p>token、cost、编辑量、session 指标都被纳入计量。没有这些，harness 只能 demo；有这些，PM 才能运营。</p>
+        </div>
+      </div>
+      <div class="callout success">
+        <div class="callout-icon">🧭</div>
+        <div><strong>评估 Harness 的 4 个核心问题</strong><p>① 有没有持续运行 loop？ ② 有没有权限和 sandbox 边界？ ③ 有没有恢复路径？ ④ 有没有成本与效果观测？能回答这 4 个问题的，才更接近产品；答不出来的，大概率还只是 demo。</p></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 7: Flight 功能 / Beta ===== -->
+<section class="module" id="m7">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">07</span><span class="module-time">roadmap signals</span></div>
+      <h1 class="module-title">Flight 中的功能：Beta Header 就是产品路线图</h1>
+      <p class="module-subtitle">这些 beta header 和 feature flag 已经进入代码、进入 gate、进入 rollout 逻辑。这比口头 roadmap 更可信，因为团队已经开始为它们支付复杂度。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>Beta Header 时间线</h2><span class="screen-tag">beta timeline</span></div>
+      <div class="timeline">
+        <div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-time">2025-03</span><h4>Web Search Beta</h4><p>Web 搜索能力接入。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-2)"></div><span class="timeline-time">2025-05</span><h4>Interleaved Thinking</h4><p>流式推理，模型边思考边输出。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-3)"></div><span class="timeline-time">2025-06</span><h4>Context Management</h4><p>更智能的上下文优化策略。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-4)"></div><span class="timeline-time">2025-08</span><h4>Context 1M</h4><p>1M token 上下文窗口支持。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--actor-5)"></div><span class="timeline-time">2025-11</span><h4>Effort Estimation</h4><p>任务难度评估。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--success)"></div><span class="timeline-time">2025-12</span><h4>Structured Outputs</h4><p>JSON 结构化输出模式。</p></div>
+        <div class="timeline-item"><div class="timeline-dot"></div><span class="timeline-time">2026-01</span><h4>AFK Mode + Prompt Caching Scope</h4><p>离开键盘模式 + 细粒度缓存控制。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--accent)"></div><span class="timeline-time">2026-02</span><h4>Fast Mode + Redact Thinking</h4><p>速度优化 + 隐藏中间推理。</p></div>
+        <div class="timeline-item"><div class="timeline-dot" style="background:var(--purple)"></div><span class="timeline-time">2026-03</span><h4>Advisor + Task Budgets + Token Efficient Tools</h4><p>代码审查顾问 + 任务 Token 预算 + 工具 Token 优化。</p></div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>Feature Flag 全景</h2><span class="screen-tag">feature gates</span></div>
+      <div class="grid-3">
+        <div class="card"><h3>编译时 Flag (Bun)</h3>
+          <div class="badge-list" style="margin-top: var(--space-3)">
+            <span class="badge-item"><code>COORDINATOR_MODE</code></span>
+            <span class="badge-item"><code>VOICE_MODE</code></span>
+            <span class="badge-item"><code>KAIROS</code></span>
+            <span class="badge-item"><code>PROACTIVE</code></span>
+            <span class="badge-item"><code>WORKFLOW_SCRIPTS</code></span>
+            <span class="badge-item"><code>AGENT_TRIGGERS</code></span>
+            <span class="badge-item"><code>TEAMMATE</code></span>
+          </div>
+        </div>
+        <div class="card"><h3>运行时 Gate (GrowthBook)</h3>
+          <div class="badge-list" style="margin-top: var(--space-3)">
+            <span class="badge-item badge-teal"><code>tengu_scratch</code></span>
+            <span class="badge-item badge-teal"><code>tengu_auto_memory</code></span>
+            <span class="badge-item badge-teal"><code>tengu_auto_background_agents</code></span>
+            <span class="badge-item badge-teal"><code>tengu_amber_quartz_disabled</code></span>
+          </div>
+        </div>
+        <div class="card"><h3>双层 Gate 设计</h3>
+          <p>编译时消除死代码（零运行时开销），GrowthBook 做动态 A/B 测试。两层结合 = 安全 + 灵活。</p>
+        </div>
+      </div>
+      <div class="callout gold">
+        <div class="callout-icon">🗺️</div>
+        <div><strong>PM 怎么读这些信号</strong><p>把 beta 看成「产品押注清单」，把 gate 看成「商业化与风控手段」，把 rollout 逻辑看成「组织是否真的准备扩到更多用户」。</p></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== MODULE 8: 有意思的发现 ===== -->
+<section class="module" id="m8">
+  <div class="module-content wide">
+    <header class="module-header">
+      <div class="module-meta"><span class="module-number">08</span><span class="module-time">discoveries</span></div>
+      <h1 class="module-title">有意思的发现：藏在代码里的产品巧思</h1>
+      <p class="module-subtitle">不是主干架构，但每一个都值得聊五分钟。</p>
+    </header>
+
+    <section class="screen reveal">
+      <div class="grid-3">
+        <div class="discovery-card">
+          <div class="discovery-emoji">🎤</div>
+          <h3>Voice Mode（语音模式）</h3>
+          <p>通过 claude.ai 的 <code>voice_stream</code> 端点实现。需要 Anthropic OAuth 认证，不支持第三方 API key。有 GrowthBook 紧急关闭开关 <code>tengu_amber_quartz_disabled</code>——说明他们对这个功能的风险非常敏感。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">⌨️</div>
+          <h3>完整 Vim 模式</h3>
+          <p>不是简单的 hjkl 移动，而是一个完整的 Vim 状态机：Normal / Insert / Replace / Visual 模式，支持 f/F/t/T 查找、text objects、dot-repeat（记录 insertedText 用于 . 命令）、g 前缀命令。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">🌐</div>
+          <h3>Bridge Mode（远程执行）</h3>
+          <p>31 个文件构成的远程执行系统。JWT 认证、设备信任验证、加密会话凭据。支持 Stdio / SSE / HTTP / WebSocket 四种传输。本质上是把 Claude Code 变成了一个远程开发环境。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">🌳</div>
+          <h3>Git Worktree 隔离</h3>
+          <p>Agent 可以在独立的 git worktree 里工作，不影响主分支。实验性代码修改在隔离环境执行。这是「可控实验」的基础设施。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">⏰</div>
+          <h3>Cron 定时任务</h3>
+          <p>ScheduleCron 工具让 Agent 可以设置定时触发。不再需要人手动启动——Agent 可以自动定期执行巡检、构建、监控等任务。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">🔙</div>
+          <h3>Thinkback Play（推理回放）</h3>
+          <p><code>/thinkback-play</code> 命令可以回放 Agent 的思考过程。对 debug 和理解 Agent 决策路径非常有价值。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">🏠</div>
+          <h3>AFK Mode（离开模式）</h3>
+          <p>2026-01-31 beta。用户离开时 Agent 继续工作。AUTO_BACKGROUND 120 秒后自动将任务转为后台。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">🔮</div>
+          <h3>MoreRight 神秘模块</h3>
+          <p>只有一个 stub 文件，注释写 "real version is internal only"。提供 <code>onBeforeQuery</code> 和 <code>onTurnComplete</code> 生命周期钩子。内部版显然有更多功能。</p>
+        </div>
+        <div class="discovery-card">
+          <div class="discovery-emoji">💰</div>
+          <h3>Prompt Caching 精细控制</h3>
+          <p>不只是用不用缓存的二选一，而是 <code>prompt-caching-scope</code> beta 做细粒度缓存范围控制。缓存创建和读取的 token 分别计量。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen reveal">
+      <div class="screen-intro"><h2>最后：一张 PM 带走的 Checklist</h2><span class="screen-tag">takeaway</span></div>
+      <p class="lead">以后每次你提一个 Agent 新功能，都先问这 5 个问题：</p>
+      <div class="grid-5" style="margin-top: var(--space-6)">
+        <div class="card" style="text-align: center; border-top: 3px solid var(--actor-1)"><span style="font-size: 2rem; display: block; margin-bottom: var(--space-2)">1</span><h3>落在哪一层？</h3><p>Command / Tool / Skill / Plugin</p></div>
+        <div class="card" style="text-align: center; border-top: 3px solid var(--actor-2)"><span style="font-size: 2rem; display: block; margin-bottom: var(--space-2)">2</span><h3>需要哪些上下文？</h3><p>Git / 记忆 / 权限 / 会话</p></div>
+        <div class="card" style="text-align: center; border-top: 3px solid var(--actor-3)"><span style="font-size: 2rem; display: block; margin-bottom: var(--space-2)">3</span><h3>默认能到哪一步？</h3><p>Allow / Ask / Deny</p></div>
+        <div class="card" style="text-align: center; border-top: 3px solid var(--actor-4)"><span style="font-size: 2rem; display: block; margin-bottom: var(--space-2)">4</span><h3>失败怎么办？</h3><p>恢复 / 提示 / 接管</p></div>
+        <div class="card" style="text-align: center; border-top: 3px solid var(--actor-5)"><span style="font-size: 2rem; display: block; margin-bottom: var(--space-2)">5</span><h3>怎么知道变好了？</h3><p>Completion / Cost / Trust</p></div>
+      </div>
+      <div class="callout success" style="margin-top: var(--space-8)">
+        <div class="callout-icon">🧭</div>
+        <div><strong>带走的终极判断题</strong><p>如果一个新功能提案只讲「模型会帮用户做什么」，却讲不清楚它落在哪一层、怎么被授权、出错怎么恢复、如何被观测，那它还不是一个成熟的 AI Agent PM 提案。</p></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<footer style="max-width: var(--content-width); margin: var(--space-16) auto var(--space-10); text-align: center; padding: 0 var(--space-5);">
+  <div style="width: 48px; height: 2px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 0 auto var(--space-6); border-radius: 1px;"></div>
+  <p style="color: var(--text-muted); font-size: var(--text-sm); line-height: 1.8; margin: 0;">
+    Claude Code 源码深度解析<br>
+    <span style="font-size: var(--text-xs); letter-spacing: 0.06em;">基于 2026-03-31 泄露的 src/ 快照 · ~1,900 Files · 512K+ LOC · TypeScript + Bun + React/Ink</span>
+  </p>
+</footer>
+
+<script>
+// ===== NAV SCROLL EFFECT =====
+const nav = document.querySelector('.nav');
+const progressBar = document.getElementById('progressBar');
+const modules = [...document.querySelectorAll('.module')];
+
+// ===== NAV DOTS =====
+const navDotsContainer = document.getElementById('navDots');
+modules.forEach((m, i) => {
+  const dot = document.createElement('button');
+  dot.className = 'nav-dot';
+  dot.dataset.target = m.id;
+  dot.setAttribute('aria-label', 'Module ' + (i + 1));
+  dot.addEventListener('click', () => m.scrollIntoView({ behavior: 'smooth' }));
+  navDotsContainer.appendChild(dot);
+});
+const navDots = [...navDotsContainer.querySelectorAll('.nav-dot')];
+
+function updateProgress() {
+  const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = scrollHeight > 0 ? (window.scrollY / scrollHeight) * 100 : 0;
+  progressBar.style.width = progress + '%';
+  nav.classList.toggle('scrolled', window.scrollY > 10);
+
+  let activeIndex = 0;
+  modules.forEach((module, index) => {
+    const rect = module.getBoundingClientRect();
+    if (rect.top <= window.innerHeight * 0.35 && rect.bottom > window.innerHeight * 0.35) {
+      activeIndex = index;
+    }
+  });
+  navDots.forEach((dot, index) => {
+    dot.classList.toggle('active', index === activeIndex);
+    dot.classList.toggle('visited', index < activeIndex);
+  });
+}
+window.addEventListener('scroll', updateProgress, { passive: true });
+updateProgress();
+
+// ===== KEYBOARD NAV =====
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  const active = navDots.findIndex(d => d.classList.contains('active'));
+  if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && active < modules.length - 1) {
+    modules[active + 1].scrollIntoView({ behavior: 'smooth' }); e.preventDefault();
+  }
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && active > 0) {
+    modules[active - 1].scrollIntoView({ behavior: 'smooth' }); e.preventDefault();
+  }
+});
+
+// ===== SCROLL REVEAL =====
+const revealObserver = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+// ===== TABS =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabs = btn.closest('.tabs');
+    tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    tabs.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== CHAT WINDOWS =====
+document.querySelectorAll('.chat-window').forEach(chat => {
+  const messages = [...chat.querySelectorAll('.chat-message')];
+  const nextBtn = chat.querySelector('.chat-next-btn');
+  const allBtn = chat.querySelector('.chat-all-btn');
+  const resetBtn = chat.querySelector('.chat-reset-btn');
+  const progress = chat.querySelector('.chat-progress');
+  const typing = chat.querySelector('[class*="typing"]');
+  let index = 0;
+  let timer = null;
+
+  function render() {
+    messages.forEach((m, i) => { m.style.display = i < index ? 'flex' : 'none'; });
+    progress.textContent = index + ' / ' + messages.length;
+    nextBtn.textContent = index === 0 ? 'Start' : 'Next';
+  }
+  function showNext() {
+    if (index >= messages.length) return;
+    if (typing) typing.style.display = 'flex';
+    setTimeout(() => {
+      if (typing) typing.style.display = 'none';
+      index++;
+      render();
+    }, 280);
+  }
+  nextBtn.addEventListener('click', showNext);
+  allBtn.addEventListener('click', () => {
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (index >= messages.length) { clearInterval(timer); return; }
+      showNext();
+    }, 600);
+  });
+  resetBtn.addEventListener('click', () => {
+    clearInterval(timer); index = 0;
+    if (typing) typing.style.display = 'none';
+    render();
+  });
+  render();
+});
+
+// ===== FLOW ANIMATION =====
+const flowSteps = [
+  { highlight: 'fa-1', label: '用户输入请求，例如「帮我 review 这个仓库并指出风险」' },
+  { highlight: 'fa-2', label: 'context.ts 装配上下文：Git 状态、项目记忆、CLAUDE.md、日期等。模型不是在真空里工作。' },
+  { highlight: 'fa-3', label: 'query.ts 发起 QueryLoop，流式调用 Claude API，逐事件输出。' },
+  { highlight: 'fa-4', label: '模型决定调用工具：BashTool("git diff")、GrepTool("TODO") 等。并发安全的工具可以并行。' },
+  { highlight: 'fa-5', label: '权限系统检查：git * 匹配 alwaysAllow → 自动通过；rm -rf 匹配 alwaysDeny → 直接拒绝。' },
+  { highlight: 'fa-4', label: '工具执行完毕，结果回灌给模型。如果输出 >100KB，自动落盘 + 生成摘要。' },
+  { highlight: 'fa-3', label: '模型收到工具结果，决定是继续调更多工具，还是生成最终回答。循环继续。' },
+  { highlight: 'fa-6', label: '如果遇到 max_output_tokens、上下文超限或 API 错误，走恢复路径：自动压缩、截断、重试（最多 3 次）。' },
+];
+let flowStep = -1;
+let flowTimer = null;
+const flowActors = document.querySelectorAll('.flow-actor');
+const flowLabel = document.getElementById('flowLabel');
+const flowProgress = document.getElementById('flowProgress');
+
+function renderFlow() {
+  flowActors.forEach(a => a.classList.remove('active'));
+  if (flowStep >= 0 && flowStep < flowSteps.length) {
+    const step = flowSteps[flowStep];
+    document.getElementById(step.highlight)?.classList.add('active');
+    flowLabel.textContent = step.label;
+  } else if (flowStep < 0) {
+    flowLabel.textContent = '点击 Next Step 走一遍完整执行流程';
+  } else {
+    flowLabel.textContent = '✅ 完整执行流程结束。用户的任务从输入到完成，经过了 6 个协作模块。';
+  }
+  flowProgress.textContent = Math.max(0, Math.min(flowStep + 1, flowSteps.length)) + ' / ' + flowSteps.length;
+}
+
+document.getElementById('flowNext').addEventListener('click', () => {
+  if (flowStep < flowSteps.length - 1) { flowStep++; renderFlow(); }
+});
+document.getElementById('flowAutoPlay').addEventListener('click', () => {
+  clearInterval(flowTimer);
+  flowTimer = setInterval(() => {
+    if (flowStep >= flowSteps.length - 1) { clearInterval(flowTimer); return; }
+    flowStep++; renderFlow();
+  }, 1800);
+});
+document.getElementById('flowReset').addEventListener('click', () => {
+  clearInterval(flowTimer); flowStep = -1; renderFlow();
+});
+renderFlow();
+</script>
+</body>
+</html>
