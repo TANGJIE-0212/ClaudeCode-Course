@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Agent PM Course - Claude Code Architecture</title>
+  <style>
+    :root {
+      --bg: #f5efe2;
+      --bg-strong: #efe4cf;
+      --panel: rgba(255, 250, 240, 0.86);
+      --panel-strong: #fff8ec;
+      --text: #1f2430;
+      --muted: #5f6470;
+      --accent: #0d6b5f;
+      --accent-strong: #084c45;
+      --accent-soft: #d8eee6;
+      --line: rgba(31, 36, 48, 0.12);
+      --shadow: 0 22px 60px rgba(39, 33, 17, 0.14);
+      --display: "Aptos Display", "Segoe UI", sans-serif;
+      --body: "Aptos", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--body);
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(13, 107, 95, 0.18), transparent 26%),
+        radial-gradient(circle at top right, rgba(179, 104, 56, 0.18), transparent 22%),
+        linear-gradient(180deg, #f9f3e8 0%, #f3ebdc 48%, #efe2ca 100%);
+      min-height: 100vh;
+    }
+
+    .shell {
+      width: min(1200px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+
+    .hero {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 20px;
+      margin-bottom: 18px;
+      backdrop-filter: blur(18px);
+      background: rgba(245, 239, 226, 0.78);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      max-width: 720px;
+      font-size: 15px;
+    }
+
+    .hero-badge {
+      white-space: nowrap;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .deck {
+      display: grid;
+      gap: 20px;
+    }
+
+    .slide {
+      position: relative;
+      overflow: hidden;
+      padding: 34px;
+      min-height: 78vh;
+      border-radius: 28px;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(22px);
+      animation: rise 700ms ease forwards;
+    }
+
+    .slide:nth-child(2) { animation-delay: 100ms; }
+    .slide:nth-child(3) { animation-delay: 180ms; }
+    .slide:nth-child(4) { animation-delay: 260ms; }
+    .slide:nth-child(5) { animation-delay: 340ms; }
+    .slide:nth-child(6) { animation-delay: 420ms; }
+    .slide:nth-child(7) { animation-delay: 500ms; }
+    .slide:nth-child(8) { animation-delay: 580ms; }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: auto -80px -110px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(13, 107, 95, 0.17), transparent 68%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: rgba(13, 107, 95, 0.1);
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    h2 {
+      margin: 18px 0 12px;
+      font-family: var(--display);
+      font-size: clamp(26px, 3vw, 40px);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    h3 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .lead {
+      font-size: clamp(18px, 2.1vw, 24px);
+      line-height: 1.6;
+      color: #303544;
+      max-width: 920px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .card,
+    .metric,
+    .timeline-step,
+    .lesson {
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255, 248, 236, 0.85);
+      border: 1px solid var(--line);
+    }
+
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .big-quote {
+      margin-top: 24px;
+      padding: 22px 24px;
+      font-family: var(--display);
+      font-size: clamp(26px, 3.5vw, 42px);
+      line-height: 1.08;
+      letter-spacing: -0.05em;
+      border-left: 6px solid var(--accent);
+      background: linear-gradient(90deg, rgba(13, 107, 95, 0.08), rgba(255, 255, 255, 0));
+    }
+
+    .flow {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .timeline-step {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .step-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      background: var(--accent);
+      color: white;
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .metric {
+      min-height: 170px;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 14px;
+      font-family: var(--display);
+      font-size: clamp(34px, 4vw, 58px);
+      line-height: 0.95;
+      letter-spacing: -0.06em;
+      color: var(--accent-strong);
+    }
+
+    .lesson-number {
+      margin-bottom: 8px;
+      color: var(--accent-strong);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .nav {
+      position: fixed;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .nav a {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(31, 36, 48, 0.22);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    }
+
+    .nav a:hover,
+    .nav a:focus-visible {
+      background: var(--accent);
+      outline: none;
+    }
+
+    .footer {
+      margin-top: 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        position: static;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .slide {
+        min-height: auto;
+        padding: 24px;
+      }
+
+      .span-4,
+      .span-5,
+      .span-6,
+      .span-7,
+      .span-8,
+      .span-12 {
+        grid-column: span 12;
+      }
+
+      .nav {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div>
+        <h1>Claude Code for AI Agent PM</h1>
+        <p>一份面向 AI Agent PM 的课程型讲解：它如何把“聊天模型”变成“可执行、可恢复、可治理”的工程代理，以及这些设计对 PM 的能力建设意味着什么。</p>
+      </div>
+      <div class="hero-badge">course + deck</div>
+    </header>
+
+    <main class="deck">
+      <section class="slide" id="slide-1">
+        <span class="eyebrow">01 / Thesis</span>
+        <h2>这不是一个聊天壳子，而是一个 AI Agent Runtime</h2>
+        <p class="lead">从代码结构看，Claude Code 的核心不是单次问答，而是一个持续回合制的执行系统：装配上下文、调用模型、执行工具、处理权限、压缩上下文、恢复失败，再把系统状态稳定地带到下一轮。</p>
+        <div class="big-quote">对 AI Agent PM 来说，产品设计对象不只是“模型能力”，而是“模型 x 工具 x 策略 x 恢复机制”的复合系统。</div>
+      </section>
+
+      <section class="slide" id="slide-2">
+        <span class="eyebrow">02 / Architecture</span>
+        <h2>核心模块如何分工</h2>
+        <div class="grid">
+          <article class="card span-4">
+            <h3>启动与装配</h3>
+            <p><strong>main.tsx</strong> 负责启动时序、配置加载、鉴权、特性开关、命令和技能注册、渲染器初始化。</p>
+          </article>
+          <article class="card span-4">
+            <h3>代理主循环</h3>
+            <p><strong>query.ts</strong> 负责消息流、模型调用、工具回合、自动 compact、预算控制、恢复逻辑。</p>
+          </article>
+          <article class="card span-4">
+            <h3>能力平台</h3>
+            <p><strong>tools.ts</strong> 和 <strong>Tool.ts</strong> 把读写文件、Bash、搜索、MCP、LSP、任务系统抽象成统一工具协议。</p>
+          </article>
+          <article class="card span-6">
+            <h3>用户入口层</h3>
+            <p><strong>commands.ts</strong> 组织斜杠命令，承担“显式产品入口”的角色，比如 review、memory、tasks、config、doctor。</p>
+          </article>
+          <article class="card span-6">
+            <h3>上下文与环境感知</h3>
+            <p><strong>context.ts</strong> 注入 git 状态、日期、CLAUDE.md 等上下文，让模型不是在真空里工作。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-3">
+        <span class="eyebrow">03 / Runtime Flow</span>
+        <h2>一次用户请求是怎么跑完的</h2>
+        <div class="flow">
+          <div class="timeline-step">
+            <div class="step-index">1</div>
+            <div>
+              <h3>Startup</h3>
+              <p>系统启动时并行预取配置、Keychain、远端设置和技能注册，减少冷启动等待。</p>
+            </div>
+          </div>
+          <div class="timeline-step">
+            <div class="step-index">2</div>
+            <div>
+              <h3>Context Assembly</h3>
+              <p>系统补齐 git 状态、CLAUDE.md、会话历史、模型设定、权限模式和工具清单。</p>
+            </div>
+          </div>
+          <div class="timeline-step">
+            <div class="step-index">3</div>
+            <div>
+              <h3>Model Turn</h3>
+              <p>模型流式返回内容，可能直接回复，也可能产出 tool_use，进入代理执行分支。</p>
+            </div>
+          </div>
+          <div class="timeline-step">
+            <div class="step-index">4</div>
+            <div>
+              <h3>Tool Loop</h3>
+              <p>工具执行结果被回灌给模型，直到本轮任务达到完成态、预算上限或恢复条件。</p>
+            </div>
+          </div>
+          <div class="timeline-step">
+            <div class="step-index">5</div>
+            <div>
+              <h3>Recovery</h3>
+              <p>如果上下文过长、输出超限或中途异常，系统会 compact、重试、摘要或切换收敛策略，而不是直接崩掉。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-4">
+        <span class="eyebrow">04 / PM Lens</span>
+        <h2>对 AI Agent PM 的第一层启示</h2>
+        <div class="grid">
+          <div class="metric span-4">
+            <h3>Agent 不是 Model Wrapper</h3>
+            <span class="metric-value">Runtime</span>
+            <p>真正的产品竞争力来自运行时编排，而不是只会发一次 API 请求。</p>
+          </div>
+          <div class="metric span-4">
+            <h3>Trust 不是文案问题</h3>
+            <span class="metric-value">Policy</span>
+            <p>权限模式、工具边界、用户确认点，才是用户愿不愿意放权的关键。</p>
+          </div>
+          <div class="metric span-4">
+            <h3>好体验靠恢复力</h3>
+            <span class="metric-value">Recovery</span>
+            <p>AI 产品常失败，但能否可恢复、可解释、可继续，决定是否可用。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-5">
+        <span class="eyebrow">05 / Capability Design</span>
+        <h2>从代码里看到的能力打包方式</h2>
+        <div class="grid">
+          <article class="card span-6">
+            <h3>Commands</h3>
+            <ul>
+              <li>面向用户的顶层入口</li>
+              <li>适合包装清晰任务，如 review、doctor、memory</li>
+              <li>PM 可把它理解为产品导航和任务模板</li>
+            </ul>
+          </article>
+          <article class="card span-6">
+            <h3>Tools</h3>
+            <ul>
+              <li>面向模型的底层执行能力</li>
+              <li>适合拆成可治理、可授权、可审计的原子操作</li>
+              <li>PM 可把它理解为 agent 的手和脚</li>
+            </ul>
+          </article>
+          <article class="card span-6">
+            <h3>Skills</h3>
+            <ul>
+              <li>面向复用流程的知识打包</li>
+              <li>适合把“会做”沉淀成“稳定能复现地做”</li>
+              <li>PM 可把它理解为可发现的最佳实践模板</li>
+            </ul>
+          </article>
+          <article class="card span-6">
+            <h3>Plugins / MCP / Bridge</h3>
+            <ul>
+              <li>面向平台扩展和生态接入</li>
+              <li>让 agent 从本地 CLI 走向 IDE、远端系统和团队协作</li>
+              <li>PM 要考虑生态边界、责任边界和授权边界</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-6">
+        <span class="eyebrow">06 / PM Implications</span>
+        <h2>AI Agent PM 该从这里学到什么能力</h2>
+        <div class="grid">
+          <article class="lesson span-4">
+            <div class="lesson-number">Capability Mapping</div>
+            <h3>把用户意图拆到运行时层</h3>
+            <p>不只写 PRD，还要知道一次请求会穿过哪些状态、工具、权限和恢复路径。</p>
+          </article>
+          <article class="lesson span-4">
+            <div class="lesson-number">Guardrail Design</div>
+            <h3>设计可放权的安全边界</h3>
+            <p>决定哪些动作默认允许、哪些必须确认、哪些只能在特定模式下执行。</p>
+          </article>
+          <article class="lesson span-4">
+            <div class="lesson-number">Failure Productization</div>
+            <h3>把失败做成可恢复体验</h3>
+            <p>失败不是异常分支，而是核心旅程。compact、重试、回退、摘要都应产品化。</p>
+          </article>
+          <article class="lesson span-6">
+            <div class="lesson-number">Observability</div>
+            <h3>定义你真正关心的 agent 指标</h3>
+            <p>不是只有 DAU 和满意度。还要看任务完成率、平均工具回合数、权限拦截率、上下文压缩频次、恢复成功率、单任务成本。</p>
+          </article>
+          <article class="lesson span-6">
+            <div class="lesson-number">Extensibility</div>
+            <h3>把产品做成平台，而不只是功能堆叠</h3>
+            <p>Command、Tool、Skill、Plugin、Bridge 是不同层的扩展位。PM 要知道新增能力应该落在哪一层，而不是全塞进一个 prompt。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-7">
+        <span class="eyebrow">07 / Course</span>
+        <h2>给团队讲这套系统的 90 分钟课程</h2>
+        <div class="grid">
+          <article class="lesson span-4">
+            <div class="lesson-number">Module 1</div>
+            <h3>Agent Runtime 基础</h3>
+            <p>目标：理解为什么 agent 产品的核心是执行循环，而不是聊天窗口。</p>
+          </article>
+          <article class="lesson span-4">
+            <div class="lesson-number">Module 2</div>
+            <h3>代码实战解剖</h3>
+            <p>目标：从 main、query、tools、commands、context 五个文件看清控制面。</p>
+          </article>
+          <article class="lesson span-4">
+            <div class="lesson-number">Module 3</div>
+            <h3>PM 启示与落地</h3>
+            <p>目标：把代码机制转成能力地图、指标体系、权限策略和路线图。</p>
+          </article>
+          <article class="card span-12">
+            <h3>课堂练习</h3>
+            <ul>
+              <li>练习 1：把“帮我 review 一个 PR”映射到 agent runtime 的 6 个阶段。</li>
+              <li>练习 2：为 BashTool 设计一套 PM 视角的权限策略和风险说明。</li>
+              <li>练习 3：提出一个新 skill，并说明它为什么应该是 skill 而不是 command 或 tool。</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-8">
+        <span class="eyebrow">08 / Closing</span>
+        <h2>真正值得 PM 学的，不是 prompt，而是系统设计</h2>
+        <p class="lead">这套代码告诉我们：AI Agent 产品的本质，是把模型放进一个有结构、有权限、有记忆、有恢复机制的执行系统里。PM 的工作，是定义这个系统如何可靠、可控、可扩展地完成用户任务。</p>
+        <div class="big-quote">如果你只能描述模型会什么，你还不是 AI Agent PM。你要能描述系统如何在现实环境里把能力交付出来。</div>
+      </section>
+    </main>
+
+    <p class="footer">Artifact generated for internal teaching. Open this file in a browser and use normal page scrolling as a slide flow.</p>
+  </div>
+
+  <nav class="nav" aria-label="Slide navigation">
+    <a href="#slide-1" aria-label="Slide 1"></a>
+    <a href="#slide-2" aria-label="Slide 2"></a>
+    <a href="#slide-3" aria-label="Slide 3"></a>
+    <a href="#slide-4" aria-label="Slide 4"></a>
+    <a href="#slide-5" aria-label="Slide 5"></a>
+    <a href="#slide-6" aria-label="Slide 6"></a>
+    <a href="#slide-7" aria-label="Slide 7"></a>
+    <a href="#slide-8" aria-label="Slide 8"></a>
+  </nav>
+</body>
+</html>
