@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code 架构图解 — 小白也能看懂的动画版</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700;900&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* ========== RESET & BASE ========== */
+    :root {
+      --bg: #0f0f1a;
+      --bg-card: #1a1a2e;
+      --bg-card-hover: #222240;
+      --surface: rgba(255,255,255,0.05);
+      --text: #e8e6e3;
+      --text-dim: #8b8a87;
+      --text-muted: #5a5957;
+      --accent: #6c63ff;
+      --accent-glow: rgba(108,99,255,0.3);
+      --cyan: #00d4aa;
+      --cyan-glow: rgba(0,212,170,0.25);
+      --orange: #ff7849;
+      --orange-glow: rgba(255,120,73,0.25);
+      --pink: #ff63c3;
+      --pink-glow: rgba(255,99,195,0.25);
+      --yellow: #ffd166;
+      --yellow-glow: rgba(255,209,102,0.25);
+      --blue: #4fc3f7;
+      --blue-glow: rgba(79,195,247,0.25);
+      --green: #66bb6a;
+      --red: #ef5350;
+      --border: rgba(255,255,255,0.08);
+      --font: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-xs: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font); color: var(--text); background: var(--bg);
+      line-height: 1.7; -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    ::selection { background: var(--accent); color: white; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    /* ========== PARTICLES BG ========== */
+    .particles-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 20% 10%, rgba(108,99,255,0.08), transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,212,170,0.06), transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(255,120,73,0.05), transparent 50%);
+    }
+
+    /* ========== NAV ========== */
+    .top-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      background: rgba(15,15,26,0.85); border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto; padding: 12px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 900; color: white;
+    }
+    .nav-logo span { font-weight: 700; font-size: 15px; }
+    .nav-progress {
+      position: absolute; bottom: 0; left: 0; height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--cyan), var(--orange));
+      width: 0; transition: width 150ms ease;
+    }
+    .nav-steps {
+      display: flex; gap: 4px;
+    }
+    .nav-step {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--text-muted);
+      background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 700;
+      cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;
+    }
+    .nav-step:hover { border-color: var(--accent); color: var(--accent); }
+    .nav-step.active { border-color: var(--accent); background: var(--accent); color: white; box-shadow: 0 0 12px var(--accent-glow); }
+    .nav-step.done { border-color: var(--cyan); background: var(--cyan); color: var(--bg); }
+
+    /* ========== SECTION ========== */
+    .section {
+      min-height: 100vh; padding: 100px 24px 80px; position: relative; z-index: 1;
+    }
+    .section-inner { max-width: 1000px; margin: 0 auto; }
+    .section-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 900; line-height: 1.15;
+      margin-bottom: 16px; letter-spacing: -0.03em;
+    }
+    .section-subtitle {
+      font-size: 1.1rem; color: var(--text-dim); max-width: 700px; line-height: 1.8;
+      margin-bottom: 48px;
+    }
+
+    /* ========== CARDS ========== */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px; position: relative; overflow: hidden;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.4s, border-color 0.4s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border-color: rgba(255,255,255,0.12);
+    }
+    .card-glow {
+      position: absolute; width: 200px; height: 200px; border-radius: 50%;
+      filter: blur(80px); opacity: 0.15; pointer-events: none;
+      top: -60px; right: -60px;
+    }
+    .card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; }
+    .card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.7; }
+    .card-icon {
+      width: 48px; height: 48px; border-radius: 12px; display: flex;
+      align-items: center; justify-content: center; font-size: 1.4rem;
+      margin-bottom: 16px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+
+    /* ========== HERO ========== */
+    .hero { text-align: center; padding-top: 140px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 18px; border-radius: 24px;
+      background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.2);
+      color: var(--accent); font-size: 13px; font-weight: 600; margin-bottom: 24px;
+    }
+    .hero-title {
+      font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 900;
+      line-height: 1.1; letter-spacing: -0.04em; margin-bottom: 20px;
+    }
+    .hero-title .gradient {
+      background: linear-gradient(135deg, var(--accent), var(--cyan), var(--orange));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-desc {
+      font-size: 1.15rem; color: var(--text-dim); max-width: 600px;
+      margin: 0 auto 40px; line-height: 1.8;
+    }
+    .hero-source {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: 10px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--cyan); font-size: 14px; font-weight: 500;
+      text-decoration: none; transition: all 0.3s;
+    }
+    .hero-source:hover {
+      border-color: var(--cyan); box-shadow: 0 0 20px var(--cyan-glow);
+      transform: translateY(-2px);
+    }
+
+    /* ========== ANIMATED LOOP ========== */
+    .loop-container {
+      position: relative; padding: 60px 0;
+    }
+    .loop-track {
+      display: flex; align-items: center; justify-content: center; gap: 0;
+      flex-wrap: wrap; position: relative;
+    }
+    .loop-node {
+      width: 160px; padding: 20px 16px; border-radius: var(--radius);
+      text-align: center; position: relative; z-index: 2;
+      border: 2px solid var(--border); background: var(--bg-card);
+      transition: all 0.5s cubic-bezier(0.34,1.56,0.64,1);
+      cursor: default;
+    }
+    .loop-node.active {
+      transform: scale(1.08); z-index: 3;
+    }
+    .loop-node-icon {
+      width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; color: white;
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.5s;
+    }
+    .loop-node.active .loop-node-icon { transform: scale(1.15); }
+    .loop-node strong { display: block; font-size: 13px; margin-bottom: 4px; }
+    .loop-node span { font-size: 11px; color: var(--text-muted); }
+    .loop-arrow {
+      font-size: 24px; color: var(--text-muted); margin: 0 6px;
+      transition: color 0.3s;
+    }
+    .loop-arrow.active { color: var(--accent); }
+    .loop-desc {
+      text-align: center; margin-top: 32px; padding: 20px 28px;
+      border-radius: var(--radius-sm); font-size: 0.95rem; line-height: 1.8;
+      border: 1px solid var(--border); background: var(--bg-card);
+      min-height: 80px; transition: all 0.4s;
+    }
+    .loop-controls {
+      display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 20px;
+    }
+
+    /* ========== TOOL SHOWCASE ========== */
+    .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .tool-item {
+      padding: 16px 18px; border-radius: var(--radius-sm);
+      background: var(--bg-card); border: 1px solid var(--border);
+      transition: all 0.3s; cursor: default;
+    }
+    .tool-item:hover {
+      border-color: rgba(255,255,255,0.15); transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .tool-item .tool-name {
+      font-family: var(--mono); font-size: 13px; font-weight: 600; margin-bottom: 4px;
+    }
+    .tool-item .tool-desc { font-size: 12px; color: var(--text-muted); }
+    .tool-item .tool-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 10px; font-weight: 600; margin-top: 6px;
+    }
+
+    /* ========== CODE BLOCK ========== */
+    .code-window {
+      background: #12121f; border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; margin: 24px 0;
+    }
+    .code-header {
+      padding: 10px 16px; background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .code-body {
+      padding: 20px; font-family: var(--mono); font-size: 13px; line-height: 1.9;
+      overflow-x: auto; color: #cdd6f4;
+    }
+    .ck { color: #cba6f7; } /* keyword */
+    .cs { color: #a6e3a1; } /* string */
+    .cf { color: #89b4fa; } /* function */
+    .cc { color: #6c7086; } /* comment */
+    .cn { color: #fab387; } /* number */
+    .cp { color: #f9e2af; } /* property */
+    .co { color: #94e2d5; } /* operator */
+
+    /* ========== LAYER STACK ========== */
+    .layer-stack { display: grid; gap: 12px; }
+    .layer-row {
+      display: grid; grid-template-columns: 140px 1fr; gap: 16px;
+      padding: 18px 20px; border-radius: var(--radius-sm);
+      background: var(--bg-card); border: 1px solid var(--border);
+      transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
+      cursor: default;
+    }
+    .layer-row:hover { transform: translateX(6px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .layer-label {
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px; border-radius: var(--radius-xs);
+      font-size: 13px; font-weight: 700; text-align: center;
+    }
+    .layer-desc {
+      display: flex; align-items: center; font-size: 14px; color: var(--text-dim); line-height: 1.7;
+    }
+
+    /* ========== COMPRESSION VIZ ========== */
+    .compress-viz {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .compress-tier {
+      display: grid; grid-template-columns: 48px 1fr 100px; gap: 16px; align-items: center;
+      padding: 20px; border-radius: var(--radius-sm);
+      background: var(--bg-card); border: 1px solid var(--border);
+      transition: all 0.4s;
+    }
+    .compress-tier:hover { border-color: rgba(255,255,255,0.12); }
+    .compress-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 900; color: white;
+    }
+    .compress-info h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .compress-info p { font-size: 13px; color: var(--text-muted); }
+    .compress-cost {
+      text-align: center; padding: 6px 12px; border-radius: var(--radius-xs);
+      font-size: 12px; font-weight: 700;
+    }
+
+    /* ========== PERMISSION VIZ ========== */
+    .perm-modes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .perm-mode {
+      padding: 20px 14px; border-radius: var(--radius-sm);
+      background: var(--bg-card); border: 1px solid var(--border);
+      text-align: center; transition: all 0.3s; cursor: default;
+    }
+    .perm-mode:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .perm-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+    .perm-mode h4 { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+    .perm-mode p { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ========== LIVE CHAT SIM ========== */
+    .chat-sim {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; max-width: 700px; margin: 0 auto;
+    }
+    .chat-sim-header {
+      padding: 14px 20px; background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chat-sim-header strong { font-size: 14px; }
+    .chat-messages { padding: 20px; min-height: 280px; display: flex; flex-direction: column; gap: 14px; }
+    .chat-msg {
+      display: flex; gap: 10px; align-items: flex-start;
+      animation: msgSlideIn 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+    .chat-msg.hidden { display: none; }
+    .chat-avatar {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: white; font-weight: 700;
+    }
+    .chat-bubble {
+      padding: 10px 14px; border-radius: 14px 14px 14px 4px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      font-size: 13px; line-height: 1.7; max-width: 85%;
+    }
+    .chat-bubble.tool {
+      font-family: var(--mono); font-size: 12px;
+      background: rgba(0,212,170,0.06); border-color: rgba(0,212,170,0.15);
+      color: var(--cyan);
+    }
+    .chat-typing {
+      display: flex; gap: 4px; padding: 10px 14px;
+      background: rgba(255,255,255,0.05); border-radius: 14px;
+      width: fit-content;
+    }
+    .typing-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted);
+      animation: typingBounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+    .chat-controls { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+
+    /* ========== COMPARISON TABLE ========== */
+    .compare-table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      border-radius: var(--radius); overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .compare-table th {
+      padding: 14px 18px; text-align: left; font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      background: rgba(108,99,255,0.12); color: var(--accent);
+      border-bottom: 1px solid var(--border);
+    }
+    .compare-table td {
+      padding: 12px 18px; font-size: 13px; border-bottom: 1px solid var(--border);
+      color: var(--text-dim); background: var(--bg-card);
+      transition: background 0.2s;
+    }
+    .compare-table tr:hover td { background: var(--bg-card-hover); }
+    .compare-table tr:last-child td { border-bottom: 0; }
+    .compare-table code {
+      font-family: var(--mono); font-size: 12px; padding: 2px 8px;
+      border-radius: 4px; background: rgba(108,99,255,0.1); color: var(--accent);
+    }
+
+    /* ========== BUTTONS ========== */
+    .btn {
+      padding: 10px 20px; border: 0; border-radius: var(--radius-xs);
+      font-family: var(--font); font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .btn-primary {
+      background: var(--accent); color: white;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
+    .btn-ghost {
+      background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); }
+
+    /* ========== REVEAL ========== */
+    .reveal {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal.visible > *:nth-child(1) { transition-delay: 0ms; }
+    .reveal.visible > *:nth-child(2) { transition-delay: 80ms; }
+    .reveal.visible > *:nth-child(3) { transition-delay: 160ms; }
+
+    /* ========== KEYFRAMES ========== */
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-5px); }
+    }
+    @keyframes msgSlideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .perm-modes { grid-template-columns: repeat(2, 1fr); }
+      .loop-track { flex-direction: column; gap: 8px; }
+      .loop-arrow { transform: rotate(90deg); }
+      .layer-row { grid-template-columns: 1fr; }
+      .compress-tier { grid-template-columns: 1fr; text-align: center; }
+      .compare-table { font-size: 12px; }
+      .section { padding: 80px 16px 60px; }
+    }
+
+    /* ========== SPECIAL HIGHLIGHTS ========== */
+    .highlight-accent { color: var(--accent); }
+    .highlight-cyan { color: var(--cyan); }
+    .highlight-orange { color: var(--orange); }
+    .highlight-pink { color: var(--pink); }
+    .highlight-yellow { color: var(--yellow); }
+
+    .tag {
+      display: inline-block; padding: 2px 10px; border-radius: 4px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+    }
+    .tag-accent { background: rgba(108,99,255,0.15); color: var(--accent); }
+    .tag-cyan { background: rgba(0,212,170,0.12); color: var(--cyan); }
+    .tag-orange { background: rgba(255,120,73,0.12); color: var(--orange); }
+    .tag-pink { background: rgba(255,99,195,0.12); color: var(--pink); }
+    .tag-yellow { background: rgba(255,209,102,0.12); color: var(--yellow); }
+
+    /* ========== EMOJI FLOAT ========== */
+    .emoji-float {
+      display: inline-block; animation: float 3s ease-in-out infinite;
+    }
+    .emoji-float:nth-child(2) { animation-delay: 0.3s; }
+    .emoji-float:nth-child(3) { animation-delay: 0.6s; }
+
+    /* ========== SUMMARY CARD ========== */
+    .summary-card {
+      background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(0,212,170,0.05));
+      border: 1px solid rgba(108,99,255,0.15); border-radius: var(--radius);
+      padding: 32px; margin-top: 32px;
+    }
+    .summary-card h3 { font-size: 1.2rem; margin-bottom: 12px; }
+    .summary-card ul { padding-left: 20px; }
+    .summary-card li { color: var(--text-dim); font-size: 14px; margin-bottom: 6px; line-height: 1.7; }
+    .summary-card li strong { color: var(--text); }
+
+    /* ========== FOOTER ========== */
+    .footer {
+      text-align: center; padding: 60px 24px;
+      color: var(--text-muted); font-size: 13px;
+      border-top: 1px solid var(--border);
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div class="particles-bg"></div>
+
+<!-- ========== NAV ========== -->
+<nav class="top-nav">
+  <div class="nav-inner">
+    <div class="nav-logo">
+      <div class="nav-logo-icon">CC</div>
+      <span>Claude Code 架构图解</span>
+    </div>
+    <div class="nav-steps" id="navSteps"></div>
+  </div>
+  <div class="nav-progress" id="navProgress"></div>
+</nav>
+
+<!-- ========== S0: HERO ========== -->
+<section class="section hero" id="s0">
+  <div class="section-inner">
+    <div class="hero-badge"><span class="emoji-float">🚀</span> 基于 claude-code-from-scratch 项目</div>
+    <h1 class="hero-title">
+      <span class="gradient">Claude Code</span><br>架构图解
+    </h1>
+    <p class="hero-desc">
+      用最简单的方式，理解最强 Coding Agent 的核心原理。<br>
+      ~3000 行代码复现 50 万行源码的精髓，每一步都带动画演示。
+    </p>
+    <a class="hero-source" href="https://github.com/Windy3f3f3f3f/claude-code-from-scratch" target="_blank" rel="noopener">
+      📂 源码仓库：claude-code-from-scratch →
+    </a>
+  </div>
+</section>
+
+<!-- ========== S1: 什么是 Claude Code ========== -->
+<section class="section" id="s1">
+  <div class="section-inner">
+    <div class="section-badge tag tag-accent">第 1 章</div>
+    <h2 class="section-title">Claude Code 是什么？</h2>
+    <p class="section-subtitle">
+      它不是一个简单的 AI 聊天框，而是一个完整的 <strong class="highlight-accent">AI 编程助手运行时</strong>。它能读代码、写代码、执行命令、管理记忆——像一个真正的程序员搭档。
+    </p>
+
+    <div class="grid-3 reveal">
+      <div class="card">
+        <div class="card-glow" style="background:var(--accent)"></div>
+        <div class="card-icon" style="background:rgba(108,99,255,0.15)">🤖</div>
+        <h3>不只是对话</h3>
+        <p>普通 AI 只能回答问题。Claude Code 可以自主决定：先读哪个文件、用什么工具、怎么一步步完成任务。</p>
+      </div>
+      <div class="card">
+        <div class="card-glow" style="background:var(--cyan)"></div>
+        <div class="card-icon" style="background:rgba(0,212,170,0.12)">🔧</div>
+        <h3>8 个核心工具</h3>
+        <p>读文件、写文件、编辑代码、搜索文件、搜索内容、执行命令、调用技能、启动子 Agent。</p>
+      </div>
+      <div class="card">
+        <div class="card-glow" style="background:var(--orange)"></div>
+        <div class="card-icon" style="background:rgba(255,120,73,0.12)">🔄</div>
+        <h3>自动循环</h3>
+        <p>不是一问一答，而是自动循环执行：调用 AI → 执行工具 → 把结果返回 AI → 继续…直到任务完成。</p>
+      </div>
+    </div>
+
+    <div class="summary-card reveal" style="margin-top:40px">
+      <h3>💡 一句话理解</h3>
+      <p style="color:var(--text-dim);font-size:15px;line-height:1.8">
+        把 Claude Code 想象成一个 <span class="highlight-cyan">会自己用工具的 AI 程序员</span>。你告诉他「帮我加一个登录功能」，他会自己看代码、自己决定怎么改、一步步完成，最后告诉你「做好了」。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S2: AGENT LOOP ========== -->
+<section class="section" id="s2">
+  <div class="section-inner">
+    <div class="section-badge tag tag-cyan">第 2 章</div>
+    <h2 class="section-title">核心引擎：Agent Loop</h2>
+    <p class="section-subtitle">
+      这是整个系统的心脏。一个不断转动的循环：<strong class="highlight-cyan">接收消息 → 调用 AI → 执行工具 → 返回结果</strong>，直到任务完成。
+    </p>
+
+    <!-- Animated Loop -->
+    <div class="loop-container reveal">
+      <div class="loop-track" id="loopTrack">
+        <div class="loop-node" id="ln0" data-color="var(--accent)">
+          <div class="loop-node-icon" style="background:var(--accent)">👤</div>
+          <strong>用户输入</strong>
+          <span>提问 / 指令</span>
+        </div>
+        <span class="loop-arrow" id="la0">→</span>
+        <div class="loop-node" id="ln1" data-color="var(--cyan)">
+          <div class="loop-node-icon" style="background:var(--cyan)">🧠</div>
+          <strong>调用 AI</strong>
+          <span>发送给 Claude API</span>
+        </div>
+        <span class="loop-arrow" id="la1">→</span>
+        <div class="loop-node" id="ln2" data-color="var(--orange)">
+          <div class="loop-node-icon" style="background:var(--orange)">⚙️</div>
+          <strong>AI 返回</strong>
+          <span>文本 / 工具调用</span>
+        </div>
+        <span class="loop-arrow" id="la2">→</span>
+        <div class="loop-node" id="ln3" data-color="var(--pink)">
+          <div class="loop-node-icon" style="background:var(--pink)">🔧</div>
+          <strong>执行工具</strong>
+          <span>读写文件 / 命令</span>
+        </div>
+        <span class="loop-arrow" id="la3">→</span>
+        <div class="loop-node" id="ln4" data-color="var(--yellow)">
+          <div class="loop-node-icon" style="background:var(--yellow)">📋</div>
+          <strong>结果返回</strong>
+          <span>继续 or 结束</span>
+        </div>
+      </div>
+
+      <div class="loop-desc" id="loopDesc">
+        点击「开始演示」，观看 Agent Loop 如何一步步推进任务
+      </div>
+
+      <div class="loop-controls">
+        <button class="btn btn-primary" id="loopPlayBtn" onclick="startLoopAnim()">▶ 开始演示</button>
+        <button class="btn btn-ghost" onclick="resetLoopAnim()">↺ 重置</button>
+        <span id="loopStep" style="color:var(--text-muted);font-size:13px"></span>
+      </div>
+    </div>
+
+    <!-- Code example -->
+    <div class="code-window reveal">
+      <div class="code-header">
+        <div class="code-dot" style="background:#ff5f57"></div>
+        <div class="code-dot" style="background:#ffbd2e"></div>
+        <div class="code-dot" style="background:#28c840"></div>
+        <span style="color:var(--text-muted);font-size:12px;margin-left:8px">agent.ts — 核心循环（简化版）</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cc">// Agent Loop 核心：就是一个 while(true) 循环</span>
+<span class="ck">while</span> (<span class="ck">true</span>) {
+  <span class="cc">// 1. 压缩上下文（省 token，省钱）</span>
+  <span class="ck">this</span>.<span class="cf">runCompressionPipeline</span>();
+
+  <span class="cc">// 2. 调用 AI API（流式返回）</span>
+  <span class="ck">const</span> response = <span class="ck">await</span> <span class="ck">this</span>.<span class="cf">callAnthropicStream</span>();
+
+  <span class="cc">// 3. 看看 AI 有没有要调用的工具</span>
+  <span class="ck">const</span> toolUses = response.content.<span class="cf">filter</span>(b => b.type === <span class="cs">"tool_use"</span>);
+
+  <span class="cc">// 4. 没有工具调用 → 任务完成，退出循环</span>
+  <span class="ck">if</span> (toolUses.length === <span class="cn">0</span>) <span class="ck">break</span>;
+
+  <span class="cc">// 5. 有工具调用 → 检查权限 → 执行 → 把结果返回给 AI</span>
+  <span class="ck">for</span> (<span class="ck">const</span> toolUse <span class="ck">of</span> toolUses) {
+    <span class="ck">const</span> perm = <span class="cf">checkPermission</span>(toolUse.name, toolUse.input);
+    <span class="ck">const</span> result = <span class="ck">await</span> <span class="ck">this</span>.<span class="cf">executeToolCall</span>(toolUse.name, toolUse.input);
+    <span class="cc">// 结果返回消息历史 → 下一轮循环 AI 就能看到了</span>
+  }
+
+  <span class="cc">// 6. 检查预算（钱花完了就停）</span>
+  <span class="ck">if</span> (<span class="ck">this</span>.<span class="cf">checkBudget</span>().exceeded) <span class="ck">break</span>;
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S3: 工具系统 ========== -->
+<section class="section" id="s3">
+  <div class="section-inner">
+    <div class="section-badge tag tag-orange">第 3 章</div>
+    <h2 class="section-title">工具系统：AI 的双手</h2>
+    <p class="section-subtitle">
+      AI 光有大脑不够，还需要能动手干活。工具系统就是 AI 的双手——告诉它有哪些工具可以用，每个工具怎么用。
+    </p>
+
+    <div class="tool-grid reveal">
+      <div class="tool-item" style="border-left:3px solid var(--cyan)">
+        <div class="tool-name highlight-cyan">📖 read_file</div>
+        <div class="tool-desc">读取文件内容，带行号显示</div>
+        <span class="tool-tag tag-cyan">读取</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--cyan)">
+        <div class="tool-name highlight-cyan">📝 write_file</div>
+        <div class="tool-desc">创建或覆盖写入文件</div>
+        <span class="tool-tag tag-cyan">写入</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--accent)">
+        <div class="tool-name highlight-accent">✏️ edit_file</div>
+        <div class="tool-desc">精确替换文件中的指定内容</div>
+        <span class="tool-tag tag-accent">编辑</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--cyan)">
+        <div class="tool-name highlight-cyan">📂 list_files</div>
+        <div class="tool-desc">按模式匹配列出文件</div>
+        <span class="tool-tag tag-cyan">读取</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--cyan)">
+        <div class="tool-name highlight-cyan">🔍 grep_search</div>
+        <div class="tool-desc">正则搜索文件内容</div>
+        <span class="tool-tag tag-cyan">搜索</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--orange)">
+        <div class="tool-name highlight-orange">⚡ run_shell</div>
+        <div class="tool-desc">执行 shell 命令（有危险检测）</div>
+        <span class="tool-tag tag-orange">执行</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--pink)">
+        <div class="tool-name highlight-pink">🎯 skill</div>
+        <div class="tool-desc">调用已注册的技能模板</div>
+        <span class="tool-tag tag-pink">技能</span>
+      </div>
+      <div class="tool-item" style="border-left:3px solid var(--yellow)">
+        <div class="tool-name highlight-yellow">🤖 agent</div>
+        <div class="tool-desc">启动子 Agent 处理子任务</div>
+        <span class="tool-tag tag-yellow">Agent</span>
+      </div>
+    </div>
+
+    <div class="summary-card reveal" style="margin-top:32px">
+      <h3>🔑 edit_file 的聪明设计</h3>
+      <ul>
+        <li><strong>引号容错</strong>：自动把 "弯引号" 转成 "直引号"，提高匹配成功率</li>
+        <li><strong>唯一性检查</strong>：old_string 必须在文件中只出现一次，防止误改</li>
+        <li><strong>Diff 输出</strong>：编辑后自动生成 diff，让 AI 确认改对了</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S4: 上下文压缩 ========== -->
+<section class="section" id="s4">
+  <div class="section-inner">
+    <div class="section-badge tag tag-pink">第 4 章</div>
+    <h2 class="section-title">上下文管理：4 层压缩流水线</h2>
+    <p class="section-subtitle">
+      AI 的记忆窗口有限（200K tokens），聊多了就装不下。<strong class="highlight-pink">4 层压缩</strong>从最便宜的方式开始，逐级释放空间——前 3 层不花一分钱！
+    </p>
+
+    <div class="compress-viz reveal">
+      <div class="compress-tier" style="border-left:3px solid var(--cyan)">
+        <div class="compress-num" style="background:var(--cyan)">1</div>
+        <div class="compress-info">
+          <h4>Budget 截断</h4>
+          <p>超过 50% 上下文时，自动截断过长的工具结果。保留头尾，中间用「已截断」代替。</p>
+        </div>
+        <div class="compress-cost tag-cyan tag">免费 🆓</div>
+      </div>
+      <div class="compress-tier" style="border-left:3px solid var(--accent)">
+        <div class="compress-num" style="background:var(--accent)">2</div>
+        <div class="compress-info">
+          <h4>Stale Snip</h4>
+          <p>超过 60% 时，把重复读过的旧文件结果替换成「已省略，需要时重新读取」。</p>
+        </div>
+        <div class="compress-cost tag-accent tag">免费 🆓</div>
+      </div>
+      <div class="compress-tier" style="border-left:3px solid var(--orange)">
+        <div class="compress-num" style="background:var(--orange)">3</div>
+        <div class="compress-info">
+          <h4>Microcompact</h4>
+          <p>空闲超过 5 分钟时，清理所有旧的工具结果——反正缓存也过期了。</p>
+        </div>
+        <div class="compress-cost tag-orange tag">免费 🆓</div>
+      </div>
+      <div class="compress-tier" style="border-left:3px solid var(--pink)">
+        <div class="compress-num" style="background:var(--pink)">4</div>
+        <div class="compress-info">
+          <h4>Auto-compact</h4>
+          <p>上下文用到 85% 时，调用 AI 总结整段对话，压缩成一段摘要。</p>
+        </div>
+        <div class="compress-cost tag-pink tag">要花钱 💰</div>
+      </div>
+    </div>
+
+    <div class="code-window reveal" style="margin-top:32px">
+      <div class="code-header">
+        <div class="code-dot" style="background:#ff5f57"></div>
+        <div class="code-dot" style="background:#ffbd2e"></div>
+        <div class="code-dot" style="background:#28c840"></div>
+        <span style="color:var(--text-muted);font-size:12px;margin-left:8px">agent.ts — 压缩流水线</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cc">// 每次调用 API 前，先跑一遍压缩</span>
+<span class="cf">runCompressionPipeline</span>() {
+  <span class="ck">this</span>.<span class="cf">budgetToolResults</span>();     <span class="cc">// 第 1 层：截断大结果</span>
+  <span class="ck">this</span>.<span class="cf">snipStaleResults</span>();      <span class="cc">// 第 2 层：省略旧结果</span>
+  <span class="ck">this</span>.<span class="cf">microcompact</span>();          <span class="cc">// 第 3 层：空闲时清理</span>
+}
+<span class="cc">// 第 4 层在 API 返回后检查：</span>
+<span class="ck">if</span> (inputTokens > window * <span class="cn">0.85</span>) {
+  <span class="ck">await</span> <span class="ck">this</span>.<span class="cf">compactConversation</span>(); <span class="cc">// 调用 AI 总结压缩</span>
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S5: 权限系统 ========== -->
+<section class="section" id="s5">
+  <div class="section-inner">
+    <div class="section-badge tag tag-yellow">第 5 章</div>
+    <h2 class="section-title">权限与安全：不让 AI 搞破坏</h2>
+    <p class="section-subtitle">
+      AI 能执行命令是把双刃剑，必须管好权限。5 种模式 + 16 个危险命令正则，确保 AI 不会 <code style="color:var(--red)">rm -rf /</code>。
+    </p>
+
+    <div class="perm-modes reveal">
+      <div class="perm-mode" style="border-top:3px solid var(--cyan)">
+        <span class="perm-icon">🛡️</span>
+        <h4 class="highlight-cyan">default</h4>
+        <p>默认模式。危险操作需要用户确认</p>
+      </div>
+      <div class="perm-mode" style="border-top:3px solid var(--accent)">
+        <span class="perm-icon">📋</span>
+        <h4 class="highlight-accent">plan</h4>
+        <p>只读模式。只能看文件，不能写、不能执行命令</p>
+      </div>
+      <div class="perm-mode" style="border-top:3px solid var(--orange)">
+        <span class="perm-icon">✅</span>
+        <h4 class="highlight-orange">acceptEdits</h4>
+        <p>自动批准文件编辑，危险命令仍需确认</p>
+      </div>
+      <div class="perm-mode" style="border-top:3px solid var(--pink)">
+        <span class="perm-icon">⚡</span>
+        <h4 class="highlight-pink">bypass</h4>
+        <p>YOLO 模式！全部放行，危险但效率最高</p>
+      </div>
+      <div class="perm-mode" style="border-top:3px solid var(--text-muted)">
+        <span class="perm-icon">🚫</span>
+        <h4>dontAsk</h4>
+        <p>CI 模式。需确认的操作直接拒绝</p>
+      </div>
+    </div>
+
+    <div class="code-window reveal" style="margin-top:32px">
+      <div class="code-header">
+        <div class="code-dot" style="background:#ff5f57"></div>
+        <div class="code-dot" style="background:#ffbd2e"></div>
+        <div class="code-dot" style="background:#28c840"></div>
+        <span style="color:var(--text-muted);font-size:12px;margin-left:8px">tools.ts — 危险命令检测</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cc">// 16 个危险命令正则，覆盖 Linux + Windows</span>
+<span class="ck">const</span> DANGEROUS_PATTERNS = [
+  <span class="cs">/\brm\s/</span>,           <span class="cc">// 删除文件</span>
+  <span class="cs">/\bgit\s+(push|reset)/</span>, <span class="cc">// git 危险操作</span>
+  <span class="cs">/\bsudo\b/</span>,         <span class="cc">// 提权</span>
+  <span class="cs">/\bdel\s/i</span>,          <span class="cc">// Windows 删除</span>
+  <span class="cs">/\bRemove-Item\s/i</span>,  <span class="cc">// PowerShell 删除</span>
+  <span class="cc">// ... 还有 11 个</span>
+];
+
+<span class="cc">// 权限检查三步走：</span>
+<span class="cc">// 1. 先查配置规则（.claude/settings.json）</span>
+<span class="cc">// 2. 再看当前模式</span>
+<span class="cc">// 3. 最后检查危险模式</span>
+<span class="ck">function</span> <span class="cf">checkPermission</span>(tool, input, mode) {
+  <span class="ck">if</span> (mode === <span class="cs">"bypassPermissions"</span>) <span class="ck">return</span> { action: <span class="cs">"allow"</span> };
+  <span class="ck">if</span> (ruleResult === <span class="cs">"deny"</span>) <span class="ck">return</span> { action: <span class="cs">"deny"</span> };
+  <span class="ck">if</span> (isDangerous(command)) <span class="ck">return</span> { action: <span class="cs">"confirm"</span> };
+  <span class="ck">return</span> { action: <span class="cs">"allow"</span> };
+}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S6: 实时演示 ========== -->
+<section class="section" id="s6">
+  <div class="section-inner">
+    <div class="section-badge tag tag-accent">第 6 章</div>
+    <h2 class="section-title">实战演示：看它怎么工作</h2>
+    <p class="section-subtitle">
+      点击「开始」，看 Claude Code 如何接收一个真实需求，然后自动完成任务。
+    </p>
+
+    <div class="chat-sim reveal" id="chatSim">
+      <div class="chat-sim-header">
+        <strong>🤖 Claude Code 模拟器</strong>
+        <span id="chatStatus" style="color:var(--text-muted);font-size:12px">准备就绪</span>
+      </div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-controls">
+        <button class="btn btn-primary" id="chatPlayBtn" onclick="startChatSim()">▶ 开始模拟</button>
+        <button class="btn btn-ghost" onclick="resetChatSim()">↺ 重置</button>
+        <span id="chatStep" style="color:var(--text-muted);font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S7: 记忆与技能 ========== -->
+<section class="section" id="s7">
+  <div class="section-inner">
+    <div class="section-badge tag tag-cyan">第 7 章</div>
+    <h2 class="section-title">记忆与技能：让 AI 记住你</h2>
+    <p class="section-subtitle">
+      每次对话都从零开始？不！记忆系统让 AI 跨会话记住你的偏好和项目信息；技能系统让你把流程模板化。
+    </p>
+
+    <div class="grid-2 reveal">
+      <div class="card" style="border-top:3px solid var(--cyan)">
+        <div class="card-glow" style="background:var(--cyan)"></div>
+        <h3>🧠 4 类记忆</h3>
+        <div style="margin-top:12px">
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <strong style="font-size:13px">User 记忆</strong>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">— 用户偏好（如"喜欢中文注释"）</span>
+          </div>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <strong style="font-size:13px">Project 记忆</strong>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">— 项目信息（如"用 React + TypeScript"）</span>
+          </div>
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <strong style="font-size:13px">Feedback 记忆</strong>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">— 纠正建议（如"不要用 var"）</span>
+          </div>
+          <div style="padding:8px 0">
+            <strong style="font-size:13px">Reference 记忆</strong>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:8px">— 参考文档（API 风格等）</span>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--pink)">
+        <div class="card-glow" style="background:var(--pink)"></div>
+        <h3>🎯 技能系统</h3>
+        <div style="margin-top:12px">
+          <p style="font-size:13px;color:var(--text-dim);line-height:1.8;margin-bottom:12px">
+            在 <code style="color:var(--pink)">.claude/skills/</code> 目录放 Markdown 文件，就是一个技能。两种执行方式：
+          </p>
+          <div style="padding:10px;border-radius:8px;background:rgba(255,99,195,0.06);border:1px solid rgba(255,99,195,0.1);margin-bottom:8px">
+            <strong style="font-size:13px">Inline 模式</strong>
+            <span style="font-size:12px;color:var(--text-muted)">— 把技能 prompt 注入到当前对话</span>
+          </div>
+          <div style="padding:10px;border-radius:8px;background:rgba(255,209,102,0.06);border:1px solid rgba(255,209,102,0.1)">
+            <strong style="font-size:13px">Fork 模式</strong>
+            <span style="font-size:12px;color:var(--text-muted)">— 启动独立子 Agent 执行，不污染主对话</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S8: 多 Agent ========== -->
+<section class="section" id="s8">
+  <div class="section-inner">
+    <div class="section-badge tag tag-orange">第 8 章</div>
+    <h2 class="section-title">多 Agent：一个不够，再来几个</h2>
+    <p class="section-subtitle">
+      复杂任务一个 Agent 忙不过来？生一个子 Agent 出来帮忙。子 Agent 有独立上下文，完成后把结果交回主 Agent。
+    </p>
+
+    <div class="grid-3 reveal">
+      <div class="card" style="border-top:3px solid var(--cyan)">
+        <div class="card-icon" style="background:rgba(0,212,170,0.12)">🔍</div>
+        <h3>Explore Agent</h3>
+        <p>只读模式，快速搜索和阅读代码。用于「看看这个项目有什么」。</p>
+        <span class="tag tag-cyan" style="margin-top:8px">read-only</span>
+      </div>
+      <div class="card" style="border-top:3px solid var(--accent)">
+        <div class="card-icon" style="background:rgba(108,99,255,0.15)">📋</div>
+        <h3>Plan Agent</h3>
+        <p>规划模式，分析完写计划。用于「先想清楚再动手」。</p>
+        <span class="tag tag-accent" style="margin-top:8px">planning</span>
+      </div>
+      <div class="card" style="border-top:3px solid var(--orange)">
+        <div class="card-icon" style="background:rgba(255,120,73,0.12)">🛠️</div>
+        <h3>General Agent</h3>
+        <p>全能模式，可以读写执行。用于「帮我做这个子任务」。</p>
+        <span class="tag tag-orange" style="margin-top:8px">full access</span>
+      </div>
+    </div>
+
+    <div class="code-window reveal" style="margin-top:32px">
+      <div class="code-header">
+        <div class="code-dot" style="background:#ff5f57"></div>
+        <div class="code-dot" style="background:#ffbd2e"></div>
+        <div class="code-dot" style="background:#28c840"></div>
+        <span style="color:var(--text-muted);font-size:12px;margin-left:8px">子 Agent 运行原理</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cc">// 主 Agent 调用子 Agent 就像调一个函数</span>
+<span class="ck">const</span> subAgent = <span class="ck">new</span> <span class="cf">Agent</span>({
+  model: <span class="ck">this</span>.model,
+  customSystemPrompt: config.systemPrompt,  <span class="cc">// 专用提示词</span>
+  customTools: config.tools,                 <span class="cc">// 受限工具集</span>
+  isSubAgent: <span class="ck">true</span>,                          <span class="cc">// 标记为子 Agent</span>
+});
+
+<span class="ck">const</span> result = <span class="ck">await</span> subAgent.<span class="cf">runOnce</span>(prompt);  <span class="cc">// 独立运行</span>
+<span class="ck">this</span>.totalInputTokens += result.tokens.input;  <span class="cc">// token 计入主 Agent</span>
+<span class="ck">return</span> result.text;                             <span class="cc">// 结果返回主 Agent</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S9: 架构全景 ========== -->
+<section class="section" id="s9">
+  <div class="section-inner">
+    <div class="section-badge tag tag-yellow">第 9 章</div>
+    <h2 class="section-title">架构全景：整体是怎么拼在一起的</h2>
+    <p class="section-subtitle">
+      从用户输入到任务完成，每一层各司其职，通过消息传递协作。
+    </p>
+
+    <div class="layer-stack reveal">
+      <div class="layer-row" style="border-left:3px solid var(--accent)">
+        <div class="layer-label" style="background:rgba(108,99,255,0.12);color:var(--accent)">CLI 入口</div>
+        <div class="layer-desc"><strong>cli.ts</strong> — 参数解析、REPL 循环、会话恢复、预算 flags</div>
+      </div>
+      <div class="layer-row" style="border-left:3px solid var(--cyan)">
+        <div class="layer-label" style="background:rgba(0,212,170,0.1);color:var(--cyan)">Agent 核心</div>
+        <div class="layer-desc"><strong>agent.ts</strong> — Agent Loop、流式输出、4 层压缩、子 Agent 调度</div>
+      </div>
+      <div class="layer-row" style="border-left:3px solid var(--orange)">
+        <div class="layer-label" style="background:rgba(255,120,73,0.1);color:var(--orange)">工具层</div>
+        <div class="layer-desc"><strong>tools.ts</strong> — 8 工具实现 + 5 权限模式 + 引号容错 + diff 输出</div>
+      </div>
+      <div class="layer-row" style="border-left:3px solid var(--pink)">
+        <div class="layer-label" style="background:rgba(255,99,195,0.1);color:var(--pink)">Prompt 层</div>
+        <div class="layer-desc"><strong>prompt.ts</strong> — System Prompt 模板 + 记忆/技能/Agent 动态注入</div>
+      </div>
+      <div class="layer-row" style="border-left:3px solid var(--yellow)">
+        <div class="layer-label" style="background:rgba(255,209,102,0.1);color:#b8860b">扩展层</div>
+        <div class="layer-desc"><strong>memory.ts / skills.ts / subagent.ts</strong> — 记忆系统、技能系统、多 Agent</div>
+      </div>
+      <div class="layer-row" style="border-left:3px solid var(--text-muted)">
+        <div class="layer-label" style="background:rgba(255,255,255,0.04);color:var(--text-dim)">持久化层</div>
+        <div class="layer-desc"><strong>session.ts</strong> — 会话自动保存/恢复，支持 --resume 继续上次对话</div>
+      </div>
+    </div>
+
+    <!-- 对比表 -->
+    <h3 style="margin-top:48px;margin-bottom:20px;font-size:1.2rem" class="reveal">📊 Mini 版 vs 完整版 Claude Code</h3>
+    <div class="reveal">
+      <table class="compare-table">
+        <thead>
+          <tr><th>维度</th><th>Claude Code（50 万行）</th><th>mini-claude（~3000 行）</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>工具数量</td><td>66+ 内置工具</td><td>8 个工具</td></tr>
+          <tr><td>上下文管理</td><td>4 级压缩流水线</td><td>4 层压缩（完整复现）</td></tr>
+          <tr><td>权限系统</td><td>7 层 + AST 分析</td><td>5 种模式 + 正则检测</td></tr>
+          <tr><td>编辑验证</td><td>14 步流水线</td><td>引号容错 + 唯一性 + diff</td></tr>
+          <tr><td>记忆系统</td><td>4 类型 + 语义召回</td><td>4 类型 + 关键词召回</td></tr>
+          <tr><td>多 Agent</td><td>Sub-Agent + Coordinator + Swarm</td><td>Sub-Agent（3 内置 + 自定义）</td></tr>
+          <tr><td>代码量</td><td><code>512,000+</code> 行</td><td><code>~3,000</code> 行</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S10: 总结 ========== -->
+<section class="section" id="s10">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-badge tag tag-accent">总结</div>
+    <h2 class="section-title" style="margin-bottom:32px">
+      <span class="gradient" style="background:linear-gradient(135deg,var(--accent),var(--cyan),var(--orange));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+        现在你懂了！
+      </span>
+    </h2>
+
+    <div class="grid-4 reveal" style="text-align:left;margin-bottom:40px">
+      <div class="card" style="border-top:3px solid var(--accent)">
+        <h3 style="font-size:2rem;margin-bottom:4px">🔄</h3>
+        <h3>Agent Loop</h3>
+        <p>无限循环：调用 AI → 执行工具 → 返回结果</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--cyan)">
+        <h3 style="font-size:2rem;margin-bottom:4px">🔧</h3>
+        <h3>工具系统</h3>
+        <p>8 个工具给 AI 动手的能力</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--orange)">
+        <h3 style="font-size:2rem;margin-bottom:4px">📦</h3>
+        <h3>上下文压缩</h3>
+        <p>4 层压缩，前 3 层不花钱</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--pink)">
+        <h3 style="font-size:2rem;margin-bottom:4px">🛡️</h3>
+        <h3>权限安全</h3>
+        <p>5 种模式 + 危险检测</p>
+      </div>
+    </div>
+
+    <a class="hero-source" href="https://github.com/Windy3f3f3f3f/claude-code-from-scratch" target="_blank" rel="noopener" style="margin-bottom:16px;display:inline-flex">
+      📂 去看源码，动手试试 →
+    </a>
+    <p style="color:var(--text-muted);font-size:13px;margin-top:12px">
+      完整的 11 章教程在 <a href="https://windy3f3f3f3f.github.io/claude-code-from-scratch/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">在线文档</a> 中
+    </p>
+  </div>
+</section>
+
+<!-- ========== FOOTER ========== -->
+<footer class="footer">
+  <p>
+    基于 <a href="https://github.com/Windy3f3f3f3f/claude-code-from-scratch" target="_blank" rel="noopener">Windy3f3f3f3f/claude-code-from-scratch</a> 项目制作<br>
+    MIT License · 小白也能看懂的 Claude Code 架构图解
+  </p>
+</footer>
+
+<script>
+// ========== NAV PROGRESS & STEPS ==========
+const sections = document.querySelectorAll('.section');
+const SECTION_COUNT = sections.length;
+
+// Build nav steps
+const navSteps = document.getElementById('navSteps');
+for (let i = 0; i < SECTION_COUNT; i++) {
+  const btn = document.createElement('button');
+  btn.className = 'nav-step';
+  btn.textContent = i;
+  btn.onclick = () => sections[i].scrollIntoView({ behavior: 'smooth' });
+  navSteps.appendChild(btn);
+}
+
+function updateNav() {
+  const scrollY = window.scrollY;
+  const docH = document.documentElement.scrollHeight - window.innerHeight;
+  document.getElementById('navProgress').style.width = (scrollY / docH * 100) + '%';
+
+  const steps = navSteps.querySelectorAll('.nav-step');
+  let activeIdx = 0;
+  sections.forEach((s, i) => {
+    if (scrollY >= s.offsetTop - 200) activeIdx = i;
+  });
+  steps.forEach((s, i) => {
+    s.classList.remove('active', 'done');
+    if (i === activeIdx) s.classList.add('active');
+    else if (i < activeIdx) s.classList.add('done');
+  });
+}
+window.addEventListener('scroll', updateNav, { passive: true });
+updateNav();
+
+// ========== REVEAL ON SCROLL ==========
+const reveals = document.querySelectorAll('.reveal');
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+}, { threshold: 0.1 });
+reveals.forEach(r => revealObs.observe(r));
+
+// ========== AGENT LOOP ANIMATION ==========
+const loopSteps = [
+  { nodes: [0], arrows: [], desc: '<strong>Step 1：用户输入</strong><br>用户说：「帮我写一个 React 登录组件」', color: 'var(--accent)' },
+  { nodes: [1], arrows: [0], desc: '<strong>Step 2：发送给 AI</strong><br>把用户消息 + System Prompt + 工具列表 + 历史消息，一起发给 Claude API', color: 'var(--cyan)' },
+  { nodes: [2], arrows: [1], desc: '<strong>Step 3：AI 返回决策</strong><br>AI 不直接回答，而是说：「我需要先看看项目结构」→ 调用 list_files 工具', color: 'var(--orange)' },
+  { nodes: [3], arrows: [2], desc: '<strong>Step 4：执行工具</strong><br>检查权限 ✅ → 执行 list_files("src/**") → 返回文件列表', color: 'var(--pink)' },
+  { nodes: [4], arrows: [3], desc: '<strong>Step 5：结果返回</strong><br>把工具执行结果放回消息历史 → AI 能看到文件列表了 → 继续下一轮循环', color: 'var(--yellow)' },
+  { nodes: [1], arrows: [0], desc: '<strong>Step 6：第二轮循环</strong><br>AI 看到文件列表后，说：「现在我要创建 Login.tsx」→ 调用 write_file 工具', color: 'var(--cyan)' },
+  { nodes: [3], arrows: [2], desc: '<strong>Step 7：执行写文件</strong><br>权限检查 → 用户确认新文件创建 ✅ → 写入 Login.tsx', color: 'var(--pink)' },
+  { nodes: [2], arrows: [1], desc: '<strong>Step 8：任务完成</strong><br>AI 这轮没有调用任何工具，直接输出文字：「登录组件已创建完成」→ 循环结束 ✅', color: 'var(--orange)' },
+];
+let loopIdx = -1;
+let loopTimer = null;
+
+function clearLoopHighlights() {
+  for (let i = 0; i < 5; i++) {
+    const node = document.getElementById('ln' + i);
+    node.classList.remove('active');
+    node.style.borderColor = 'var(--border)';
+    node.style.boxShadow = 'none';
+  }
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('la' + i).classList.remove('active');
+  }
+}
+
+function showLoopStep(idx) {
+  clearLoopHighlights();
+  const step = loopSteps[idx];
+  step.nodes.forEach(n => {
+    const node = document.getElementById('ln' + n);
+    node.classList.add('active');
+    node.style.borderColor = step.color;
+    node.style.boxShadow = `0 0 24px ${step.color.replace(')', ',0.3)').replace('var(', 'rgba(').replace('--accent', '108,99,255').replace('--cyan', '0,212,170').replace('--orange', '255,120,73').replace('--pink', '255,99,195').replace('--yellow', '255,209,102')}`;
+  });
+  step.arrows.forEach(a => document.getElementById('la' + a).classList.add('active'));
+  document.getElementById('loopDesc').innerHTML = step.desc;
+  document.getElementById('loopStep').textContent = `${idx + 1} / ${loopSteps.length}`;
+}
+
+function startLoopAnim() {
+  if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
+  loopIdx = -1;
+  document.getElementById('loopPlayBtn').textContent = '⏸ 暂停';
+  loopTimer = setInterval(() => {
+    loopIdx++;
+    if (loopIdx >= loopSteps.length) {
+      clearInterval(loopTimer); loopTimer = null;
+      document.getElementById('loopPlayBtn').textContent = '▶ 重新播放';
+      loopIdx = -1;
+      return;
+    }
+    showLoopStep(loopIdx);
+  }, 2500);
+}
+
+function resetLoopAnim() {
+  if (loopTimer) { clearInterval(loopTimer); loopTimer = null; }
+  clearLoopHighlights();
+  loopIdx = -1;
+  document.getElementById('loopDesc').innerHTML = '点击「开始演示」，观看 Agent Loop 如何一步步推进任务';
+  document.getElementById('loopStep').textContent = '';
+  document.getElementById('loopPlayBtn').textContent = '▶ 开始演示';
+}
+
+// ========== CHAT SIMULATION ==========
+const chatSteps = [
+  { role: 'user', avatar: '👤', avatarBg: 'var(--accent)', name: '你', text: '帮我在项目里添加一个 /api/health 健康检查接口' },
+  { role: 'thinking', text: '' },
+  { role: 'tool', avatar: '🤖', avatarBg: 'var(--cyan)', name: 'Claude', text: '🔍 调用 grep_search("router|app.get|express", "src/")' },
+  { role: 'result', avatar: '⚙️', avatarBg: 'rgba(255,255,255,0.1)', name: '工具结果', text: '找到 src/server.ts:15 — const app = express()' },
+  { role: 'tool', avatar: '🤖', avatarBg: 'var(--cyan)', name: 'Claude', text: '📖 调用 read_file("src/server.ts")' },
+  { role: 'result', avatar: '⚙️', avatarBg: 'rgba(255,255,255,0.1)', name: '工具结果', text: '读取完成，35 行代码，Express 服务器' },
+  { role: 'tool', avatar: '🤖', avatarBg: 'var(--cyan)', name: 'Claude', text: '✏️ 调用 edit_file("src/server.ts", ...) — 添加健康检查路由' },
+  { role: 'result', avatar: '⚙️', avatarBg: 'rgba(255,255,255,0.1)', name: '工具结果', text: '✅ 编辑成功！diff: +app.get("/api/health", ...)' },
+  { role: 'tool', avatar: '🤖', avatarBg: 'var(--cyan)', name: 'Claude', text: '⚡ 调用 run_shell("npm test")' },
+  { role: 'result', avatar: '⚙️', avatarBg: 'rgba(255,255,255,0.1)', name: '工具结果', text: '✅ 所有测试通过 (12/12)' },
+  { role: 'assistant', avatar: '🤖', avatarBg: 'var(--cyan)', name: 'Claude', text: '已完成！在 src/server.ts 中添加了 <code>/api/health</code> 接口，返回 { status: "ok", uptime: ... }。测试全部通过。' },
+];
+let chatIdx = -1;
+let chatTimer = null;
+
+function addChatMsg(step) {
+  const container = document.getElementById('chatMessages');
+  // Remove typing indicator if exists
+  const typing = container.querySelector('.chat-typing');
+  if (typing) typing.remove();
+
+  if (step.role === 'thinking') {
+    const div = document.createElement('div');
+    div.className = 'chat-typing';
+    div.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+    container.appendChild(div);
+    return;
+  }
+
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg';
+  const bubbleClass = (step.role === 'tool' || step.role === 'result') ? 'chat-bubble tool' : 'chat-bubble';
+  msg.innerHTML = `
+    <div class="chat-avatar" style="background:${step.avatarBg}">${step.avatar}</div>
+    <div class="${bubbleClass}">
+      <strong style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">${step.name}</strong>
+      ${step.text}
+    </div>
+  `;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+function startChatSim() {
+  if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+  resetChatSim();
+  chatIdx = -1;
+  document.getElementById('chatPlayBtn').textContent = '⏸ 暂停';
+  document.getElementById('chatStatus').textContent = '运行中...';
+  chatTimer = setInterval(() => {
+    chatIdx++;
+    if (chatIdx >= chatSteps.length) {
+      clearInterval(chatTimer); chatTimer = null;
+      document.getElementById('chatPlayBtn').textContent = '▶ 重新模拟';
+      document.getElementById('chatStatus').textContent = '✅ 完成';
+      chatIdx = -1;
+      return;
+    }
+    addChatMsg(chatSteps[chatIdx]);
+    document.getElementById('chatStep').textContent = `${chatIdx + 1} / ${chatSteps.length}`;
+  }, 1800);
+}
+
+function resetChatSim() {
+  if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+  document.getElementById('chatMessages').innerHTML = '';
+  document.getElementById('chatStep').textContent = '';
+  document.getElementById('chatPlayBtn').textContent = '▶ 开始模拟';
+  document.getElementById('chatStatus').textContent = '准备就绪';
+  chatIdx = -1;
+}
+</script>
+</body>
+</html>
